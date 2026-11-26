@@ -18,13 +18,39 @@ Then fill `.env` with your Firebase web config and open the address Vite prints 
 
 Create a Firebase project (Analytics not needed, Spark plan is fine), open **AI Services → AI Logic → Get started**, choose the **Gemini Developer API**, and finish the workflow (it enforces App Check for AI Logic). Register a web app under **Project settings → Your apps → Web** and copy its config into `.env`. Run `npm run dev`, copy the `App Check debug token` printed in the browser console, and add it under **Security → App Check → Apps → Manage debug tokens** (optionally also put it in `.env` as `VITE_APPCHECK_DEBUG_TOKEN` so it stays the same).
 
-## History and training data
+## Accounts and data
 
-Tick **Save my ECG sessions** to store 10-second ECG blocks (int16, 250 Hz) with their scenario label, beats and alerts, plus the AI answers, in Cloud Firestore. Each browser signs in anonymously and can only read its own data ([firestore.rules](firestore.rules)). **Export** downloads a session as JSON for training. The data is simulated: a model trained on it learns the simulator, not real hearts.
+Everyone signs in before using the app (email/password with email verification, or Google). On first sign-in the app asks for a display name, age, optional resting heart rate, role (athlete or coach) and consent. Age and resting heart rate personalise the alert thresholds ([src/rules.js](src/rules.js)); without them the defaults above apply.
 
-Each block also holds the accelerometer signal (25 Hz), skin temperature and humidity (1 Hz) and the measured movement (moving / still). Sessions carry the optional profile (age, sex, running level, height, weight). All sensor values are simulated.
+| Path | Content |
+| --- | --- |
+| `users/{uid}` | profile and consent date |
+| `users/{uid}/windows` | one summary per 10 s: heart rate, rhythm variation, movement, temperature, humidity, label |
+| `users/{uid}/events` | anomaly events (type, start, end, peak) |
 
-Setup: enable **Authentication → Anonymous**, create a **Firestore database**, then run `firebase deploy --only firestore:rules`.
+Raw ECG and accelerometer signals are **never uploaded**. **Download raw signal** saves the last 30 minutes from the browser to your computer, for training with `ml/train.py`. All sensor values are simulated.
+
+### Auth setup (Firebase console)
+
+1. **Authentication → Sign-in method:** enable **Email/Password** and **Google**; disable **Anonymous**.
+2. **Authentication → Settings → User actions:** turn on **Email enumeration protection**.
+3. **Authentication → Settings → Authorized domains:** include your hosting domains.
+4. Create the Firestore database, then `firebase deploy --only firestore:rules`.
+
+### Security rules and tests
+
+[firestore.rules](firestore.rules) denies everything by default. A user with a **verified email** can access only their own documents, with allowed keys, types and size limits. Run `npm run test:rules` (needs Java 11+). To try the whole app offline from production, run `npm run emulators`, then `VITE_USE_EMULATORS=1 npm run dev` in a second terminal.
+
+## Security and privacy
+
+- Health data is processed only after consent. Export it or delete it with the account under **Settings and privacy**.
+- Your display name is not sent to the AI. Other profile values and measurements are sent in coach and report prompts. Symptom notes are never stored.
+- App Check protects Firebase AI Logic (Fraud Defense on the hosted site, debug token in local development only).
+- Signing out clears the offline copy in the browser.
+- The sign-in lockout after repeated failures is a courtesy in the browser, not a server protection; Firebase applies its own rate limits.
+- Security headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`. There is no Content-Security-Policy yet.
+- The "coach" role is only a label: coaches cannot see other people's data.
+- Not a medical device.
 
 ## Deploy (Firebase Hosting)
 

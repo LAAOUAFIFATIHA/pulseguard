@@ -46,7 +46,7 @@ const db = initializeFirestore(app, {
 // Local testing only: `VITE_USE_EMULATORS=1 npm run dev`
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === "1") {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectFirestoreEmulator(db, "127.0.0.1", 8085);
 }
 
 const uid = () => auth.currentUser.uid;
