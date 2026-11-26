@@ -19,10 +19,15 @@ const MESSAGES = {
   "auth/popup-blocked": "Your browser blocked the Google window. Allow pop-ups and try again.",
   "auth/unauthorized-domain": "This web address is not authorised for sign-in yet.",
   "auth/operation-not-allowed": "This sign-in method is not enabled yet.",
+  "auth/configuration-not-found": "Sign-in is not set up yet for this app (Firebase Authentication is off).",
   "auth/requires-recent-login": "For safety, confirm your identity again.",
 };
 
 export const authMessage = (err) => MESSAGES[err?.code] ?? "Something went wrong. Please try again.";
+
+// Setup and network problems are not wrong guesses: they never lock the form.
+export const countsAsFailure = (err) =>
+  !/configuration-not-found|operation-not-allowed|unauthorized-domain|network-request-failed|popup/.test(err?.code ?? "");
 
 export const MIN_PASSWORD = 10;
 

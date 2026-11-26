@@ -12,7 +12,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth, loadProfile, saveProfile, signOutAndClear } from "./db.js";
-import { authMessage, createThrottle, MIN_PASSWORD } from "./auth-errors.js";
+import { authMessage, countsAsFailure, createThrottle, MIN_PASSWORD } from "./auth-errors.js";
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ["boot-screen", "auth-screen", "verify-screen", "onboard-screen", "app"];
@@ -37,15 +37,15 @@ function setMode(next) {
 }
 
 let countdown;
-function lockWhileThrottled() {
+function lockWhileThrottled(reason) {
   clearInterval(countdown);
   const tick = () => {
     const left = throttle.wait();
     $("auth-submit").disabled = $("google-signin").disabled = left > 0;
-    if (left > 0) say("auth-message", `Too many failed attempts. Wait ${left} s.`);
+    if (left > 0) say("auth-message", `${reason} Too many failed attempts. Wait ${left} s.`);
     else {
       clearInterval(countdown);
-      say("auth-message");
+      say("auth-message", reason); // keep the real cause visible
     }
   };
   if (throttle.wait()) {
@@ -58,16 +58,19 @@ async function attempt(action) {
   if (throttle.wait()) return;
   $("auth-submit").disabled = $("google-signin").disabled = true;
   say("auth-message", "Please wait…");
+  let reason;
   try {
     await action();
     throttle.succeed();
     say("auth-message");
   } catch (err) {
-    throttle.fail();
+    console.error(err.code);
+    if (countsAsFailure(err)) throttle.fail();
     say("auth-message", authMessage(err));
+    reason = authMessage(err);
   } finally {
     $("auth-submit").disabled = $("google-signin").disabled = false;
-    lockWhileThrottled();
+    if (reason) lockWhileThrottled(reason);
   }
 }
 
