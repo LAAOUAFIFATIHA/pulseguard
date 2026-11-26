@@ -79,3 +79,12 @@ Until the model is ready, `PREFER_ON_DEVICE` answers from the cloud.
 ## License
 
 [Apache 2.0](LICENSE)
+
+## Part 3: a model for the ESP32 (pipeline test)
+
+```bash
+node ml/generate_dataset.mjs
+python ml/train.py
+```
+
+The first command writes simulated sessions to `ml/data/`; app exports can be dropped in the same folder. `train.py` (NumPy only) computes four features per 10 s block (heart rate, R-R variation, ECG and acceleration spread), trains a small neural network with a train/test split by session, and exports `ml/out/pulseguard_model.h` for microcontrollers. **The accuracy on simulated data says nothing about real hearts:** it only shows the pipeline works. The C code has not been compiled or run on an ESP32 yet, and the feature extraction still has to be ported to firmware.

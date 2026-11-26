@@ -35,3 +35,7 @@ notes.md
 
 # Firebase CLI cache
 .firebase/
+
+# Training data (health data: never commit)
+ml/data/
+__pycache__/
