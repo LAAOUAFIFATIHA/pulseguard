@@ -8,8 +8,26 @@ const fmtTime = (sec) => {
 };
 const bpm = (x) => (x == null ? "unknown" : `${Math.round(x)} bpm`);
 
+const describe = (p) => {
+  const parts = [
+    p.age && `age ${p.age}`,
+    p.sex,
+    p.runner && `running level: ${p.runner}`,
+    p.heightCm && `${p.heightCm} cm`,
+    p.weightKg && `${p.weightKg} kg`,
+  ].filter(Boolean);
+  return parts.length ? `User: ${parts.join(", ")}.\n` : "";
+};
+
 /** Live coaching tip from the current snapshot (on-device). */
-export function buildCoachPrompt(snap) {
+export function buildCoachPrompt(snap, profile = {}) {
+  const body = [
+    snap.motion && `Movement: ${snap.motion}.`,
+    snap.tempC != null && `Skin temperature: ${snap.tempC.toFixed(1)} C.`,
+    snap.humidity != null && `Humidity under shirt: ${Math.round(snap.humidity)} %.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const alerts = snap.activeAlerts.length
     ? snap.activeAlerts.map((a) => a.label).join("; ")
     : "none";
@@ -19,6 +37,8 @@ export function buildCoachPrompt(snap) {
   return (
     "You are PulseGuard, a friendly heart-rate coach in a wellness app. " +
     "You are not a doctor and must not diagnose.\n" +
+    describe(profile) +
+    (body ? body + "\n" : "") +
     `Activity: ${snap.activity}. Heart rate: ${bpm(snap.hr)}. Rhythm: ${rhythm}.${zone} ` +
     `Active alerts: ${alerts}.\n` +
     "Give one short, practical tip in at most two sentences. " +
@@ -28,7 +48,7 @@ export function buildCoachPrompt(snap) {
 }
 
 /** Doctor-ready session report (cloud-first). */
-export function buildReportPrompt(sum) {
+export function buildReportPrompt(sum, profile = {}) {
   const line = (name, s) =>
     s ? `- ${name}: average ${bpm(s.avg)}, min ${bpm(s.min)}, max ${bpm(s.max)}` : `- ${name}: no data`;
   const events = sum.events.length
@@ -45,6 +65,10 @@ export function buildReportPrompt(sum) {
     "You are writing a summary of a wearable ECG session for the user to show their doctor. " +
     "The data comes from a consumer device with simple threshold rules, so do not diagnose; " +
     "describe what was measured and what may be worth discussing.\n\n" +
+    describe(profile) +
+    (sum.body
+      ? `Skin temperature average ${sum.body.avgTempC.toFixed(1)} C, humidity average ${Math.round(sum.body.avgHumidity)} %, moving ${sum.body.movingPercent} % of the time.\n`
+      : "") +
     `Session length: ${fmtTime(sum.durationSec)} (mm:ss), ${sum.beats} beats detected.\n` +
     "Heart rate:\n" +
     [line("Overall", sum.overall), line("At rest", sum.rest), line("During exercise", sum.exercise)].join("\n") +

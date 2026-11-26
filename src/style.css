@@ -108,6 +108,7 @@ textarea {
 #badge.in-cloud { display: inline-block; background: var(--cloud); }
 
 #error-msg {
+  overflow-wrap: anywhere;
   margin-top: 10px;
   color: #fff;
   background: var(--bad);
@@ -181,3 +182,18 @@ details.card > summary::-webkit-details-marker { display: none; }
 details.card > summary h2 { display: inline; margin: 0; }
 details.card > summary::before { content: "▸ "; color: var(--text); }
 details.card[open] > summary::before { content: "▾ "; }
+
+/* ── History ── */
+#history-status { margin: 8px 0; }
+#sessions { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+#sessions li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#sessions li span { flex: 1 1 240px; }
+
+/* ── Body sensors and profile ── */
+.vitals { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.vitals div { flex: 1 1 140px; background: var(--code-bg); border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; }
+.vitals span { font-size: 12px; }
+.vitals strong { color: var(--text-h); font-size: 20px; }
+.profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0 8px; }
+.profile label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
+.profile input { font: inherit; font-size: 14px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-h); min-width: 0; }

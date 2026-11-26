@@ -44,10 +44,28 @@
           <canvas id="ecg-canvas" aria-label="Live ECG trace"></canvas>
         </div>
 
+        <div class="vitals">
+          <div><span>Skin temperature</span><strong id="temp-value">--</strong></div>
+          <div><span>Humidity</span><strong id="humidity-value">--</strong></div>
+          <div><span>Movement</span><strong id="motion-value">--</strong></div>
+        </div>
+
         <h3>Alerts</h3>
         <ul id="alerts" aria-live="polite"></ul>
         <p class="disclaimer">Demo only. PulseGuard is not a medical device and uses simple threshold rules.</p>
       </section>
+
+      <details class="card">
+        <summary><h2>My profile (optional)</h2></summary>
+        <div class="profile">
+          <label>Age <input id="profile-age" type="number" min="10" max="100" /></label>
+          <label>Sex <select id="profile-sex"><option value="">Not said</option><option value="female">Female</option><option value="male">Male</option></select></label>
+          <label>Running <select id="profile-runner"><option value="">Not said</option><option value="not a runner">Not a runner</option><option value="occasional runner">Occasional runner</option><option value="regular runner">Regular runner</option><option value="athlete">Athlete</option></select></label>
+          <label>Height (cm) <input id="profile-heightCm" type="number" min="100" max="230" /></label>
+          <label>Weight (kg) <input id="profile-weightKg" type="number" min="30" max="250" /></label>
+        </div>
+        <p class="hint">Sent with AI prompts, and stored with your sessions when saving is on.</p>
+      </details>
 
       <!-- AI on the ECG data -->
       <section class="card">
@@ -73,6 +91,18 @@
           <summary>Prompt sent to the model</summary>
           <pre id="last-prompt"></pre>
         </details>
+      </section>
+
+      <!-- History (Firestore) -->
+      <section class="card">
+        <h2>History</h2>
+        <label class="check">
+          <input type="checkbox" id="save-history" />
+          Save my ECG sessions and AI answers to the cloud (private to this browser)
+        </label>
+        <p id="history-status" class="hint" aria-live="polite">Saving is off.</p>
+        <button id="refresh-history" type="button">Show my sessions</button>
+        <ul id="sessions"></ul>
       </section>
 
       <!-- Part 1 tools -->

@@ -32,3 +32,6 @@ notes.md
 
 # Personal build guides
 *Build Guide*.pdf
+
+# Firebase CLI cache
+.firebase/

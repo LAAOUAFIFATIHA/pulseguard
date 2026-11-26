@@ -3,6 +3,7 @@
 import { EcgSimulator, SCENARIOS } from "./ecg.js";
 import { BeatDetector, RhythmMonitor } from "./anomaly.js";
 import { EcgChart } from "./chart.js";
+import { SensorSimulator, MotionDetector } from "./sensors.js";
 
 const FS = 250;
 const $ = (id) => document.getElementById(id);
@@ -12,10 +13,11 @@ const fmtTime = (sec) => {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export function createMonitor({ onAlert } = {}) {
+export function createMonitor({ onAlert, recorder } = {}) {
   const chart = new EcgChart($("ecg-canvas"), { sampleRate: FS });
   let sim, detector, rhythm, timer, lastTick, lastUpdate, snap;
   let running = false;
+  let sensors, motionDetector, body, totals;
 
   // scenario picker
   for (const [key, s] of Object.entries(SCENARIOS)) {
@@ -26,9 +28,14 @@ export function createMonitor({ onAlert } = {}) {
   }
 
   function reset() {
+    recorder?.restart();
     sim = new EcgSimulator({ sampleRate: FS, scenario: $("scenario").value });
     detector = new BeatDetector({ sampleRate: FS });
     rhythm = new RhythmMonitor();
+    sensors = new SensorSimulator();
+    motionDetector = new MotionDetector();
+    body = { motion: null, tempC: null, humidity: null };
+    totals = { n: 0, moving: 0, tempC: 0, humidity: 0 };
     snap = rhythm.snapshot(null, null);
     chart.clear();
     chart.draw();
@@ -41,18 +48,37 @@ export function createMonitor({ onAlert } = {}) {
     const dt = Math.min(1, (now - lastTick) / 1000); // cap catch-up when the tab was hidden
     lastTick = now;
     for (const v of sim.generate(dt)) {
+      recorder?.sample(v, {
+        t: detector.t,
+        label: sim.scenarioKey,
+        activity: sim.scenario.activity,
+      });
       const beat = detector.push(v);
       if (beat !== null) {
         rhythm.addBeat(beat);
+        recorder?.beat(beat);
         pulse();
       }
       chart.push([v]);
     }
     chart.draw();
+
+    const { accel, readings } = sensors.generate(dt, sim.scenario.activity);
+    body.motion = motionDetector.push(accel);
+    for (const r of readings) {
+      Object.assign(body, r);
+      totals.n++;
+      totals.tempC += r.tempC;
+      totals.humidity += r.humidity;
+      if (body.motion === "moving") totals.moving++;
+    }
+    recorder?.sensors({ accel, readings });
+
     if (sim.t - lastUpdate >= 0.5) {
       lastUpdate = sim.t;
       const before = new Set(snap.activeAlerts.map((a) => a.type));
-      snap = rhythm.update(sim.t, sim.scenario.activity);
+      snap = Object.assign(rhythm.update(sim.t, sim.scenario.activity), body);
+      recorder?.annotate(snap);
       const fresh = snap.activeAlerts.filter((a) => !before.has(a.type));
       render();
       if (fresh.length && onAlert) onAlert(fresh, snap);
@@ -67,6 +93,9 @@ export function createMonitor({ onAlert } = {}) {
   }
 
   function render() {
+    $("temp-value").textContent = body.tempC == null ? "--" : body.tempC.toFixed(1) + " °C";
+    $("humidity-value").textContent = body.humidity == null ? "--" : Math.round(body.humidity) + " %";
+    $("motion-value").textContent = body.motion == null ? "--" : body.motion === "moving" ? "Moving" : "Still";
     $("hr-value").textContent = snap.hr == null ? "--" : Math.round(snap.hr);
     $("session-time").textContent = fmtTime(sim.t);
     $("activity").textContent = snap.activity === "exercise" ? "Exercise" : "Rest";
@@ -107,6 +136,7 @@ export function createMonitor({ onAlert } = {}) {
   function stop() {
     running = false;
     clearInterval(timer);
+    recorder?.pause();
     $("start").textContent = "Resume";
   }
 
@@ -122,7 +152,16 @@ export function createMonitor({ onAlert } = {}) {
   return {
     start,
     snapshot: () => snap,
-    summary: () => rhythm.summary(),
+    summary: () => ({
+      ...rhythm.summary(),
+      body: totals.n
+        ? {
+            avgTempC: totals.tempC / totals.n,
+            avgHumidity: totals.humidity / totals.n,
+            movingPercent: Math.round((100 * totals.moving) / totals.n),
+          }
+        : null,
+    }),
     hasData: () => rhythm.hrLog.length > 0,
   };
 }

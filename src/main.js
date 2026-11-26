@@ -1,6 +1,9 @@
 import "./style.css";
 import { ask, report, tagSymptoms, initDeviceModel, checkDeviceModel, InferenceSource } from "./ai.js";
 import { createMonitor } from "./monitor.js";
+import { appCheckReady } from "./firebase.js";
+import { createHistory } from "./history-ui.js";
+import { initProfile, readProfile } from "./profile.js";
 import { buildCoachPrompt, buildReportPrompt } from "./prompts.js";
 
 const $ = (id) => document.getElementById(id);
@@ -80,7 +83,10 @@ function explain(err, kind) {
       : "You're offline and the on-device model isn't ready. Prepare it while online, or reconnect.";
   }
   if (/app.?check|403|401|PERMISSION_DENIED/i.test(msg)) {
-    return "Request rejected by App Check. Register the debug token printed in the console (Firebase console → App Check → Manage debug tokens). " + msg;
+    const fix = import.meta.env.DEV
+      ? "Register the debug token printed in the console (Firebase console → App Check → Manage debug tokens)."
+      : "This site could not be verified (check the Fraud Defense key in Firebase App Check), then reload the page.";
+    return "Request rejected by App Check. " + fix + " " + msg;
   }
   return "Request failed: " + msg;
 }
@@ -99,10 +105,12 @@ async function runAI(kind, prompt) {
       const { data, source } = await tagSymptoms(prompt);
       $("answer").textContent = JSON.stringify(data, null, 2);
       showBadge(source);
+      history.saveAnswer({ kind, prompt, text: JSON.stringify(data), source });
     } else {
       const { text, source } = await (kind === "report" ? report(prompt) : ask(prompt));
       $("answer").textContent = text;
       showBadge(source);
+      history.saveAnswer({ kind, prompt, text, source });
     }
   } catch (err) {
     console.error(err);
@@ -115,12 +123,16 @@ async function runAI(kind, prompt) {
 
 // ── Live ECG + AI coach ─────────────────────────────────────────────────────
 let lastAutoCoach = -Infinity;
+// getSummary is only called while recording, after `monitor` exists.
+initProfile({ onChange: (p) => history.profileChanged(p) });
+const history = createHistory({ sampleRate: 250, getSummary: () => monitor.summary(), getProfile: readProfile });
 const monitor = createMonitor({
+  recorder: history,
   onAlert: (fresh, snap) => {
     if (!$("auto-coach").checked || busy || !fresh.length) return;
     if (snap.t - lastAutoCoach < 20) return; // don't flood the model
     lastAutoCoach = snap.t;
-    runAI("coach", buildCoachPrompt(snap));
+    runAI("coach", buildCoachPrompt(snap, readProfile()));
   },
 });
 
@@ -130,7 +142,7 @@ $("coach-now").onclick = () => {
     showError("Start the live ECG and wait a few seconds for a heart rate first.");
     return;
   }
-  runAI("coach", buildCoachPrompt(monitor.snapshot()));
+  runAI("coach", buildCoachPrompt(monitor.snapshot(), readProfile()));
 };
 
 $("doctor-report").onclick = () => {
@@ -139,7 +151,7 @@ $("doctor-report").onclick = () => {
     showError("Record some ECG first: start the live ECG, try a few scenarios, then ask for the report.");
     return;
   }
-  runAI("report", buildReportPrompt(monitor.summary()));
+  runAI("report", buildReportPrompt(monitor.summary(), readProfile()));
 };
 
 // ── Free prompts (Part 1 tools) ─────────────────────────────────────────────
@@ -175,3 +187,6 @@ $("init").onclick = async () => {
 
 updateNetStatus();
 showDeviceStatus();
+if (!appCheckReady) {
+  showError("This build has no reCAPTCHA site key, so App Check will reject AI requests. Set VITE_RECAPTCHA_SITE_KEY in .env and rebuild.");
+}

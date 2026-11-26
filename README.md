@@ -18,6 +18,23 @@ Then fill `.env` with your Firebase web config and open the address Vite prints 
 
 Create a Firebase project (Analytics not needed, Spark plan is fine), open **AI Services → AI Logic → Get started**, choose the **Gemini Developer API**, and finish the workflow (it enforces App Check for AI Logic). Register a web app under **Project settings → Your apps → Web** and copy its config into `.env`. Run `npm run dev`, copy the `App Check debug token` printed in the browser console, and add it under **Security → App Check → Apps → Manage debug tokens** (optionally also put it in `.env` as `VITE_APPCHECK_DEBUG_TOKEN` so it stays the same).
 
+## History and training data
+
+Tick **Save my ECG sessions** to store 10-second ECG blocks (int16, 250 Hz) with their scenario label, beats and alerts, plus the AI answers, in Cloud Firestore. Each browser signs in anonymously and can only read its own data ([firestore.rules](firestore.rules)). **Export** downloads a session as JSON for training. The data is simulated: a model trained on it learns the simulator, not real hearts.
+
+Each block also holds the accelerometer signal (25 Hz), skin temperature and humidity (1 Hz) and the measured movement (moving / still). Sessions carry the optional profile (age, sex, running level, height, weight). All sensor values are simulated.
+
+Setup: enable **Authentication → Anonymous**, create a **Firestore database**, then run `firebase deploy --only firestore:rules`.
+
+## Deploy (Firebase Hosting)
+
+The hosted site cannot use the debug token, so App Check uses **Google Cloud Fraud Defense** (formerly reCAPTCHA Enterprise; reCAPTCHA v3 "Classic" is deprecated):
+
+1. In the Google Cloud console for the same project, open **Fraud Defense** (reCAPTCHA) and create a **website** key with the domains `<project-id>.web.app` and `<project-id>.firebaseapp.com` (never `localhost`), without the checkbox challenge.
+2. Put its **site key** in `.env` as `VITE_RECAPTCHA_SITE_KEY`.
+3. In the Firebase console, **Security → App Check → Apps → your web app → Fraud Defense**, paste the same site key and save.
+4. Run `firebase login` once, then `npm run deploy` (tests, build, deploy to `https://<project-id>.web.app`).
+
 ## Live ECG monitor
 
 The smart T-shirt is simulated ([`src/ecg.js`](src/ecg.js)): a synthetic ECG (P, QRS and T waves) is generated in real time and drawn as a heart-monitor sweep. Heart rate is **measured from the signal** by an R-peak detector, and threshold rules in [`src/anomaly.js`](src/anomaly.js) raise alerts once a condition lasts 8 seconds:
