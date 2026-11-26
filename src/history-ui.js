@@ -1,132 +1,140 @@
-// "Save history" switch, session list, dataset export and delete.
-import { signIn, openSession, listSessions, exportSession, deleteSession, saveProfile } from "./history.js";
-import { ChunkRecorder } from "./recorder.js";
+// Cloud history (10 s summaries + anomaly events), a raw recording that stays
+// in this browser for training, and the settings actions.
+import {
+  saveWindow,
+  saveEvent,
+  newEventId,
+  recentEvents,
+  exportAll,
+  signOutAndClear,
+  deleteAccount,
+  usesPassword,
+  auth,
+} from "./db.js";
+import { ChunkRecorder, decodeSamples, CHUNK_SECONDS } from "./recorder.js";
+import { summarize } from "./summary.js";
 
 const $ = (id) => document.getElementById(id);
-const PREF = "pulseguard.saveHistory";
+const MAX_RAW_CHUNKS = 180; // 30 minutes kept in memory
 
-function explain(err) {
-  const code = err?.code ?? "";
-  if (/configuration-not-found|operation-not-allowed|admin-restricted/.test(code)) {
-    return "Enable Anonymous sign-in in the Firebase console (Authentication).";
-  }
-  if (/permission-denied/.test(code)) return "Firestore refused access: deploy firestore.rules.";
-  return err?.message || String(err);
+function download(name, data) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
+  Object.assign(document.createElement("a"), { href: url, download: name }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function createHistory({ sampleRate, getSummary, getProfile }) {
-  let recorder = null;
-  let session = null;
-
+export function createHistory({ sampleRate }) {
+  const raw = [];
+  let tracked = new Map(); // rhythm event object -> { id, ended }
+  let saved = 0;
+  let lastWrite = 0;
+  const saving = () => $("save-history").checked;
   const status = (msg) => ($("history-status").textContent = msg);
   const fail = (err) => {
     console.error(err);
-    status("Not saved. " + explain(err));
+    status(err.code === "permission-denied" ? "Not saved: the database refused the data." : "Not saved: " + err.message);
   };
 
-  function newRecording() {
-    recorder?.flush();
-    session = openSession({ onError: fail, getProfile });
-    const target = session;
-    recorder = new ChunkRecorder({
-      sampleRate,
-      onChunk: (chunk) => {
-        target.saveChunk(chunk, getSummary());
-        status(`Saving: ${chunk.index + 1} block(s) of ECG recorded.`);
-      },
-    });
-  }
+  const onChunk = (chunk) => {
+    raw.push(chunk);
+    if (raw.length > MAX_RAW_CHUNKS) raw.shift();
+    // only full blocks, at most one write every 9 s
+    const now = Date.now();
+    if (!saving() || chunk.sampleCount < CHUNK_SECONDS * sampleRate || now - lastWrite < 9000) return;
+    lastWrite = now;
+    saveWindow(summarize(chunk), now - CHUNK_SECONDS * 1000, fail);
+    status(`Saved ${++saved} summary block(s).`);
+  };
+  let recorder = new ChunkRecorder({ sampleRate, onChunk });
 
-  async function enable() {
-    try {
-      status("Connecting…");
-      await signIn();
-      saveProfile(getProfile()).catch(fail);
-      newRecording();
-      status("Saving is on. A block is stored every 10 seconds.");
-      await refresh();
-    } catch (err) {
-      $("save-history").checked = false;
-      fail(err);
+  /** `events` are the monitor's events; `t` is the session time in seconds. */
+  function events(list, t) {
+    if (!saving()) return;
+    for (const e of list) {
+      let entry = tracked.get(e);
+      const ended = e.end != null;
+      if (entry && (entry.ended || !ended)) continue; // nothing new
+      entry ??= { id: newEventId(), startAt: Date.now() - (t - e.start) * 1000 };
+      entry.ended = ended;
+      tracked.set(e, entry);
+      saveEvent(
+        entry.id,
+        { ...e, startAt: entry.startAt, endAt: ended ? Date.now() - (t - e.end) * 1000 : null },
+        fail
+      );
     }
-  }
-
-  function disable() {
-    recorder?.flush();
-    recorder = session = null;
-    status("Saving is off.");
   }
 
   async function refresh() {
     try {
-      await signIn();
       const list = $("sessions");
-      const sessions = await listSessions();
+      const found = await recentEvents();
       list.replaceChildren();
-      if (!sessions.length) list.append(Object.assign(document.createElement("li"), { textContent: "No saved sessions yet." }));
-      for (const s of sessions) list.append(row(s));
+      const add = (text) => list.append(Object.assign(document.createElement("li"), { textContent: text }));
+      if (!found.length) add("No saved anomaly events yet.");
+      for (const e of found) {
+        const peak = e.peakHr ? ` · ${e.peakHr} bpm` : "";
+        add(`${e.startAt.toDate().toLocaleString()} · ${e.type}${peak}`);
+      }
     } catch (err) {
       fail(err);
     }
   }
-
-  function row(s) {
-    const li = document.createElement("li");
-    const text = document.createElement("span");
-    const hr = s.avgHr == null ? "no HR" : `avg ${Math.round(s.avgHr)} bpm`;
-    text.textContent = `${new Date(s.startedAt).toLocaleString()} · ${Math.round(s.durationSec)} s · ${hr} · ${s.alerts?.length ?? 0} alert(s)`;
-
-    const dl = Object.assign(document.createElement("button"), { type: "button", className: "chip", textContent: "Export" });
-    dl.onclick = async () => {
-      try {
-        const data = await exportSession(s.id, s.profile ?? null);
-        const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
-        Object.assign(document.createElement("a"), { href: url, download: `pulseguard-${s.id}.json` }).click();
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        fail(err);
-      }
-    };
-
-    const rm = Object.assign(document.createElement("button"), { type: "button", className: "chip", textContent: "Delete" });
-    rm.onclick = async () => {
-      if (!confirm("Delete this session permanently?")) return;
-      try {
-        await deleteSession(s.id);
-        await refresh();
-      } catch (err) {
-        fail(err);
-      }
-    };
-
-    li.append(text, dl, rm);
-    return li;
-  }
-
-  $("save-history").onchange = (e) => {
-    try {
-      localStorage.setItem(PREF, e.target.checked ? "1" : "0");
-    } catch {}
-    e.target.checked ? enable() : disable();
-  };
   $("refresh-history").onclick = refresh;
-  window.addEventListener("pagehide", () => recorder?.flush());
+  $("save-history").onchange = () => status(saving() ? "Saving is on." : "Saving is off.");
+  status("Saving is on: one summary every 10 seconds.");
 
-  try {
-    if (localStorage.getItem(PREF) === "1") {
-      $("save-history").checked = true;
-      enable();
+  $("download-raw").onclick = () => {
+    recorder.flush();
+    if (!raw.length) return status("Start the ECG first: nothing recorded yet.");
+    download(`pulseguard-raw-${Date.now()}.json`, {
+      sessionId: `local-${Date.now()}`,
+      chunks: raw.map((c) => ({ ...c, samples: decodeSamples(c.samples), accel: decodeSamples(c.accel) })),
+    });
+  };
+
+  // ── Settings ────────────────────────────────────────────────────────────
+  const note = (msg) => ($("settings-status").textContent = msg);
+  $("account-email").textContent = auth.currentUser.email;
+  $("delete-password-row").hidden = !usesPassword();
+  $("sign-out").onclick = () => signOutAndClear().catch((err) => note(err.message));
+  $("export-data").onclick = async () => {
+    try {
+      note("Preparing your data…");
+      download("pulseguard-my-data.json", await exportAll());
+      note("Downloaded.");
+    } catch (err) {
+      console.error(err);
+      note("Export failed. Check your connection.");
     }
-  } catch {}
+  };
+  $("delete-account").onclick = async () => {
+    if (!navigator.onLine) return note("Connect to the internet to delete your account.");
+    if (usesPassword() && !$("delete-password").value) return note("Type your password to confirm.");
+    if (!confirm("Delete all your data and your account? This cannot be undone.")) return;
+    try {
+      note("Deleting…");
+      $("save-history").checked = false; // no new writes while deleting
+      await deleteAccount($("delete-password").value);
+    } catch (err) {
+      console.error(err);
+      note(/credential|password/.test(err.code) ? "Wrong password." : "Deletion failed. Please try again.");
+    }
+  };
+
+  window.addEventListener("pagehide", () => recorder.flush());
 
   return {
-    sensors: (data) => recorder?.sensors(data),
-    profileChanged: (profile) => session && saveProfile(profile).catch(fail),
-    sample: (v, meta) => recorder?.push(v, meta),
-    beat: (t) => recorder?.addBeat(t),
-    annotate: (snap) => recorder?.annotate(snap),
-    pause: () => recorder?.flush(),
-    restart: () => recorder && newRecording(),
-    saveAnswer: (a) => session?.saveAnswer(a),
+    sample: (v, meta) => recorder.push(v, meta),
+    sensors: (data) => recorder.sensors(data),
+    beat: (t) => recorder.addBeat(t),
+    annotate: (snap) => recorder.annotate(snap),
+    events,
+    pause: () => recorder.flush(),
+    restart: () => {
+      recorder.flush();
+      recorder = new ChunkRecorder({ sampleRate, onChunk });
+      tracked = new Map();
+    },
   };
 }

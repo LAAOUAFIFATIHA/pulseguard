@@ -1,8 +1,8 @@
-import "./style.css";
 import { ask, report, tagSymptoms, initDeviceModel, checkDeviceModel, InferenceSource } from "./ai.js";
 import { createMonitor } from "./monitor.js";
 import { appCheckReady } from "./firebase.js";
 import { createHistory } from "./history-ui.js";
+import { personalRules } from "./rules.js";
 import { initProfile, readProfile } from "./profile.js";
 import { buildCoachPrompt, buildReportPrompt } from "./prompts.js";
 
@@ -128,7 +128,7 @@ async function runAI(kind, prompt) {
   setLoading(true);
   try {
     if (kind === "symptom") {
-      // Symptom notes are private: never written to the cloud history.
+      // Symptom notes are private: never stored.
       const result = await tagSymptoms(prompt, {
         confirmCloud: () =>
           confirm("This note can't be processed on this device. Send it to the cloud model?"),
@@ -143,7 +143,6 @@ async function runAI(kind, prompt) {
       showBadge(result.source);
       logRequest(kind, result);
       if (kind === "coach") speak(result.text);
-      history.saveAnswer({ kind, prompt, text: result.text, source: result.source });
     }
   } catch (err) {
     console.error(err);
@@ -156,11 +155,11 @@ async function runAI(kind, prompt) {
 
 // ── Live ECG + AI coach ─────────────────────────────────────────────────────
 let lastAutoCoach = -Infinity;
-// getSummary is only called while recording, after `monitor` exists.
-initProfile({ onChange: (p) => history.profileChanged(p) });
-const history = createHistory({ sampleRate: 250, getSummary: () => monitor.summary(), getProfile: readProfile });
+const history = createHistory({ sampleRate: 250 });
+initProfile({ onChange: (p) => monitor.setRules(personalRules(p)) });
 const monitor = createMonitor({
   recorder: history,
+  getRules: () => personalRules(readProfile()),
   onAlert: (fresh, snap) => {
     if (!$("auto-coach").checked || busy || !fresh.length) return;
     if (snap.t - lastAutoCoach < 20) return; // don't flood the model

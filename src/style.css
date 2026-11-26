@@ -31,7 +31,8 @@
 
 body { margin: 0; background: var(--bg); }
 
-#app {
+#app,
+.gate {
   max-width: 760px;
   margin: 0 auto;
   padding: 24px 16px 48px;
@@ -203,3 +204,13 @@ details.card[open] > summary::before { content: "▾ "; }
 .log summary { cursor: pointer; }
 .log table { border-collapse: collapse; width: 100%; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .log th, .log td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+
+/* ── Sign-in gate ── */
+[hidden] { display: none !important; }
+.gate { max-width: 420px; }
+.notice { font-size: 13px; border-left: 4px solid var(--accent); padding-left: 10px; }
+.form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.form input:not([type="checkbox"]) { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-h); width: 100%; box-sizing: border-box; min-width: 0; }
+.password { display: flex; gap: 6px; }
+.check input { flex: none; }
+#auth-message, #onboard-message, #verify-message { min-height: 1.5em; font-size: 14px; color: var(--accent); }

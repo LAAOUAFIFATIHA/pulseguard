@@ -13,7 +13,7 @@ const fmtTime = (sec) => {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export function createMonitor({ onAlert, recorder } = {}) {
+export function createMonitor({ onAlert, recorder, getRules } = {}) {
   const chart = new EcgChart($("ecg-canvas"), { sampleRate: FS });
   let sim, detector, rhythm, timer, lastTick, lastUpdate, snap;
   let running = false;
@@ -31,7 +31,7 @@ export function createMonitor({ onAlert, recorder } = {}) {
     recorder?.restart();
     sim = new EcgSimulator({ sampleRate: FS, scenario: $("scenario").value });
     detector = new BeatDetector({ sampleRate: FS });
-    rhythm = new RhythmMonitor();
+    rhythm = new RhythmMonitor(getRules?.());
     sensors = new SensorSimulator();
     motionDetector = new MotionDetector();
     body = { motion: null, tempC: null, humidity: null };
@@ -79,6 +79,7 @@ export function createMonitor({ onAlert, recorder } = {}) {
       const before = new Set(snap.activeAlerts.map((a) => a.type));
       snap = Object.assign(rhythm.update(sim.t, sim.scenario.activity), body);
       recorder?.annotate(snap);
+      recorder?.events(rhythm.events, sim.t);
       const fresh = snap.activeAlerts.filter((a) => !before.has(a.type));
       render();
       if (fresh.length && onAlert) onAlert(fresh, snap);
@@ -151,6 +152,7 @@ export function createMonitor({ onAlert, recorder } = {}) {
 
   return {
     start,
+    setRules: (rules) => Object.assign(rhythm.rules, rules),
     snapshot: () => snap,
     summary: () => ({
       ...rhythm.summary(),

@@ -7,7 +7,75 @@
     <title>PulseGuard</title>
   </head>
   <body>
-    <main id="app">
+    <!-- Sign-in gate (see src/boot.js) -->
+    <main id="boot-screen" class="gate">
+      <h1>PulseGuard</h1>
+      <p id="boot-message" role="status">Loading…</p>
+    </main>
+
+    <main id="auth-screen" class="gate" hidden>
+      <h1>PulseGuard</h1>
+      <p class="notice">PulseGuard is a demo and <strong>not a medical device</strong>. It cannot diagnose. In an emergency, call emergency services.</p>
+      <section class="card">
+        <h2 id="auth-title">Sign in</h2>
+        <form id="auth-form" class="form">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" type="email" autocomplete="email" required />
+          <label for="auth-password">Password</label>
+          <div class="password">
+            <input id="auth-password" type="password" autocomplete="current-password" required />
+            <button type="button" id="toggle-password" aria-pressed="false" aria-controls="auth-password">Show</button>
+          </div>
+          <div id="signup-extra" hidden>
+            <p class="hint">At least 10 characters.</p>
+            <label class="check"><input type="checkbox" id="auth-consent" /> I agree that PulseGuard processes my health data (heart rate, body sensors, profile) to provide the app.</label>
+          </div>
+          <button id="auth-submit" class="primary" type="submit">Sign in</button>
+          <p id="auth-message" role="alert"></p>
+        </form>
+        <div class="actions">
+          <button type="button" id="google-signin">Continue with Google</button>
+          <button type="button" id="auth-switch">Create an account</button>
+          <button type="button" id="reset-password">Forgot password?</button>
+        </div>
+      </section>
+    </main>
+
+    <main id="verify-screen" class="gate" hidden>
+      <h1>Verify your email</h1>
+      <section class="card">
+        <p>We sent a link to <strong id="verify-address"></strong>. Open it, then come back here.</p>
+        <div class="actions">
+          <button type="button" id="check-verified" class="primary">I verified my email</button>
+          <button type="button" id="resend-email">Send again</button>
+          <button type="button" id="verify-signout">Sign out</button>
+        </div>
+        <p id="verify-message" role="status"></p>
+      </section>
+    </main>
+
+    <main id="onboard-screen" class="gate" hidden>
+      <h1>Your profile</h1>
+      <section class="card">
+        <form id="onboard-form" class="form">
+          <label for="ob-name">Display name</label>
+          <input id="ob-name" required maxlength="60" autocomplete="nickname" />
+          <label for="ob-age">Age</label>
+          <input id="ob-age" type="number" min="13" max="100" required />
+          <label for="ob-rest">Resting heart rate in bpm (optional)</label>
+          <input id="ob-rest" type="number" min="30" max="120" />
+          <label for="ob-role">I am</label>
+          <select id="ob-role" required><option value="athlete">An athlete</option><option value="coach">A coach</option></select>
+          <label class="check"><input type="checkbox" id="ob-consent" required /> I agree that PulseGuard processes my health data to provide the app.</label>
+          <p class="notice">Not a medical device.</p>
+          <button class="primary" type="submit">Save and continue</button>
+          <p id="onboard-message" role="alert"></p>
+        </form>
+        <button type="button" id="onboard-signout">Sign out</button>
+      </section>
+    </main>
+
+    <main id="app" hidden>
       <header>
         <h1>PulseGuard</h1>
         <p class="tagline">ECG coaching with hybrid AI — Gemini Nano on device, Gemini in the cloud.</p>
@@ -56,15 +124,21 @@
       </section>
 
       <details class="card">
-        <summary><h2>My profile (optional)</h2></summary>
-        <div class="profile">
-          <label>Age <input id="profile-age" type="number" min="10" max="100" /></label>
-          <label>Sex <select id="profile-sex"><option value="">Not said</option><option value="female">Female</option><option value="male">Male</option></select></label>
-          <label>Running <select id="profile-runner"><option value="">Not said</option><option value="not a runner">Not a runner</option><option value="occasional runner">Occasional runner</option><option value="regular runner">Regular runner</option><option value="athlete">Athlete</option></select></label>
-          <label>Height (cm) <input id="profile-heightCm" type="number" min="100" max="230" /></label>
-          <label>Weight (kg) <input id="profile-weightKg" type="number" min="30" max="250" /></label>
-        </div>
-        <p class="hint">Sent with AI prompts, and stored with your sessions when saving is on.</p>
+        <summary><h2>My profile</h2></summary>
+        <form id="profile-form">
+          <div class="profile">
+            <label>Display name <input id="profile-displayName" required maxlength="60" /></label>
+            <label>Role <select id="profile-role"><option value="athlete">Athlete</option><option value="coach">Coach</option></select></label>
+            <label>Age <input id="profile-age" type="number" min="13" max="100" required /></label>
+            <label>Resting HR <input id="profile-restingHr" type="number" min="30" max="120" /></label>
+            <label>Sex <select id="profile-sex"><option value="">Not said</option><option value="female">Female</option><option value="male">Male</option></select></label>
+            <label>Running <select id="profile-runner"><option value="">Not said</option><option value="not a runner">Not a runner</option><option value="occasional runner">Occasional runner</option><option value="regular runner">Regular runner</option><option value="athlete">Athlete</option></select></label>
+            <label>Height (cm) <input id="profile-heightCm" type="number" min="100" max="230" /></label>
+            <label>Weight (kg) <input id="profile-weightKg" type="number" min="30" max="250" /></label>
+          </div>
+          <button type="submit">Save profile</button>
+        </form>
+        <p id="profile-status" class="hint" role="status">Age and resting heart rate set your alert thresholds. All but your name is sent with AI prompts.</p>
       </details>
 
       <!-- AI on the ECG data -->
@@ -108,13 +182,34 @@
       <section class="card">
         <h2>History</h2>
         <label class="check">
-          <input type="checkbox" id="save-history" />
-          Save my ECG sessions and AI answers to the cloud (private to this browser)
+          <input type="checkbox" id="save-history" checked />
+          Save 10-second summaries and alerts to my account
         </label>
-        <p id="history-status" class="hint" aria-live="polite">Saving is off.</p>
-        <button id="refresh-history" type="button">Show my sessions</button>
+        <p id="history-status" class="hint" aria-live="polite"></p>
+        <div class="actions">
+          <button id="refresh-history" type="button">Show recent alerts</button>
+          <button id="download-raw" type="button">Download raw signal (stays on this device)</button>
+        </div>
         <ul id="sessions"></ul>
       </section>
+
+      <details class="card">
+        <summary><h2>Settings and privacy</h2></summary>
+        <p class="hint">Signed in as <strong id="account-email"></strong>. PulseGuard is not a medical device.</p>
+        <div class="actions">
+          <button type="button" id="export-data">Export my data (JSON)</button>
+          <button type="button" id="sign-out">Sign out</button>
+        </div>
+        <h3>Delete my data and account</h3>
+        <div class="form">
+          <div id="delete-password-row">
+            <label for="delete-password">Confirm your password</label>
+            <input id="delete-password" type="password" autocomplete="current-password" />
+          </div>
+          <button type="button" id="delete-account" class="primary">Delete everything</button>
+        </div>
+        <p id="settings-status" class="hint" role="status"></p>
+      </details>
 
       <!-- Part 1 tools -->
       <details class="card" id="tools">
@@ -140,6 +235,6 @@
         </div>
       </details>
     </main>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/boot.js"></script>
   </body>
 </html>
