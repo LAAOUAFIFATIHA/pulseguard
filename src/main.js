@@ -91,6 +91,32 @@ function explain(err, kind) {
   return "Request failed: " + msg;
 }
 
+/** Read a coaching tip out loud: a runner can't read a screen. */
+function speak(text) {
+  if (!$("speak").checked || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
+  utterance.lang = "en-US";
+  speechSynthesis.speak(utterance);
+}
+
+const seconds = (ms) => (ms == null ? "-" : (ms / 1000).toFixed(1) + " s");
+
+/** Add one line to the request log (source and response time). */
+function logRequest(kind, { source, firstMs, totalMs }) {
+  const row = document.createElement("tr");
+  const cells = [
+    new Date().toLocaleTimeString(),
+    kind,
+    source === InferenceSource.ON_DEVICE ? "On device" : "In cloud",
+    seconds(firstMs),
+    seconds(totalMs),
+  ];
+  for (const value of cells) row.append(Object.assign(document.createElement("td"), { textContent: value }));
+  $("request-log").prepend(row);
+  while ($("request-log").rows.length > 8) $("request-log").lastElementChild.remove();
+}
+
 /** Send a prompt to the right model and show the answer + badge. */
 async function runAI(kind, prompt) {
   resetAnswer();
@@ -102,20 +128,27 @@ async function runAI(kind, prompt) {
   setLoading(true);
   try {
     if (kind === "symptom") {
-      const { data, source } = await tagSymptoms(prompt);
-      $("answer").textContent = JSON.stringify(data, null, 2);
-      showBadge(source);
-      history.saveAnswer({ kind, prompt, text: JSON.stringify(data), source });
+      // Symptom notes are private: never written to the cloud history.
+      const result = await tagSymptoms(prompt, {
+        confirmCloud: () =>
+          confirm("This note can't be processed on this device. Send it to the cloud model?"),
+      });
+      $("answer").textContent = JSON.stringify(result.data, null, 2);
+      showBadge(result.source);
+      logRequest(kind, result);
     } else {
-      const { text, source } = await (kind === "report" ? report(prompt) : ask(prompt));
-      $("answer").textContent = text;
-      showBadge(source);
-      history.saveAnswer({ kind, prompt, text, source });
+      const onText = (text) => ($("answer").textContent = text);
+      const result = await (kind === "report" ? report(prompt, onText) : ask(prompt, onText));
+      onText(result.text);
+      showBadge(result.source);
+      logRequest(kind, result);
+      if (kind === "coach") speak(result.text);
+      history.saveAnswer({ kind, prompt, text: result.text, source: result.source });
     }
   } catch (err) {
     console.error(err);
     $("answer").textContent = "";
-    showError(explain(err, kind));
+    showError(err.privacy ? err.message : explain(err, kind));
   } finally {
     setLoading(false);
   }
@@ -152,6 +185,10 @@ $("doctor-report").onclick = () => {
     return;
   }
   runAI("report", buildReportPrompt(monitor.summary(), readProfile()));
+};
+
+$("speak").onchange = (e) => {
+  if (!e.target.checked) window.speechSynthesis?.cancel();
 };
 
 // ── Free prompts (Part 1 tools) ─────────────────────────────────────────────

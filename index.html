@@ -78,6 +78,10 @@
           <input type="checkbox" id="auto-coach" />
           Ask the coach automatically when a new alert starts
         </label>
+        <label class="check">
+          <input type="checkbox" id="speak" />
+          Read coaching tips aloud
+        </label>
       </section>
 
       <section class="card">
@@ -87,6 +91,13 @@
         </div>
         <p id="error-msg" role="alert" hidden></p>
         <pre id="answer" aria-live="polite"></pre>
+        <details class="log">
+          <summary>Request log (source and response time)</summary>
+          <table>
+            <thead><tr><th>Time</th><th>Task</th><th>Answered by</th><th>First text</th><th>Total</th></tr></thead>
+            <tbody id="request-log"></tbody>
+          </table>
+        </details>
         <details id="prompt-details">
           <summary>Prompt sent to the model</summary>
           <pre id="last-prompt"></pre>
@@ -125,7 +136,7 @@
         <div class="actions">
           <button id="ask">Ask (coach · prefer on-device)</button>
           <button id="report">Report (prefer cloud)</button>
-          <button id="symptom">Tag symptoms (JSON)</button>
+          <button id="symptom">Tag symptoms (private)</button>
         </div>
       </details>
     </main>

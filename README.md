@@ -35,6 +35,8 @@ The hosted site cannot use the debug token, so App Check uses **Google Cloud Fra
 3. In the Firebase console, **Security → App Check → Apps → your web app → Fraud Defense**, paste the same site key and save.
 4. Run `firebase login` once, then `npm run deploy` (tests, build, deploy to `https://<project-id>.web.app`).
 
+Answers are streamed, and a request log shows which side answered and how fast. Coaching tips can be read aloud (browser speech synthesis). Symptom notes go through a privacy gate: they are processed on-device, the app asks before sending one to the cloud, and they are never saved in the history.
+
 ## Live ECG monitor
 
 The smart T-shirt is simulated ([`src/ecg.js`](src/ecg.js)): a synthetic ECG (P, QRS and T waves) is generated in real time and drawn as a heart-monitor sweep. Heart rate is **measured from the signal** by an R-peak detector, and threshold rules in [`src/anomaly.js`](src/anomaly.js) raise alerts once a condition lasts 8 seconds:
@@ -58,7 +60,7 @@ All AI calls are in [`src/ai.js`](src/ai.js):
 | Task | Model object | Mode |
 | --- | --- | --- |
 | Live coaching text | `coachModel` | `PREFER_ON_DEVICE` |
-| Symptom note → JSON tags (structured output) | `symptomModel` | `PREFER_ON_DEVICE` |
+| Private symptom note → JSON tags (structured output) | `privateSymptomModel`, then `cloudSymptomModel` only if you agree | `ONLY_ON_DEVICE`, then `ONLY_IN_CLOUD` |
 | Long report, trends, doctor summary | `reportModel` | `PREFER_IN_CLOUD` |
 
 `response.inferenceSource` (`on_device` / `in_cloud`) drives the badge.

@@ -56,42 +56,86 @@ const symptomJsonSchema = {
   required: ["tags", "severity", "summary"],
 };
 
-export const symptomModel = getGenerativeModel(ai, {
-  mode: InferenceMode.PREFER_ON_DEVICE,
-  inCloudParams: {
-    model: CLOUD_MODEL,
-    generationConfig: { responseMimeType: "application/json", responseSchema: symptomSchema },
-  },
+// Private notes: try strictly on-device first. The cloud model is only used
+// after the user agrees (see tagSymptoms).
+export const privateSymptomModel = getGenerativeModel(ai, {
+  mode: InferenceMode.ONLY_ON_DEVICE,
+  inCloudParams: { model: CLOUD_MODEL },
   onDeviceParams: {
     promptOptions: { responseConstraint: symptomJsonSchema },
   },
 });
 
+export const cloudSymptomModel = getGenerativeModel(ai, {
+  mode: InferenceMode.ONLY_IN_CLOUD,
+  inCloudParams: {
+    model: CLOUD_MODEL,
+    generationConfig: { responseMimeType: "application/json", responseSchema: symptomSchema },
+  },
+});
+
 // ── Step 5: the first hybrid call ───────────────────────────────────────────
 
-/** Run a single-turn prompt and report which side answered. */
-export async function run(model, prompt) {
-  const result = await model.generateContent(prompt);
+/**
+ * Run a single-turn prompt, streaming the answer. `onText` receives the text so
+ * far. Reports which side answered and how long it took.
+ */
+export async function run(model, prompt, onText) {
+  const started = performance.now();
+  const result = await model.generateContentStream(prompt);
+  result.response.catch(() => {}); // a failure is reported by the loop below
+  let text = "";
+  let firstMs = null;
+  for await (const chunk of result.stream) {
+    const piece = chunk.text();
+    if (!piece) continue;
+    firstMs ??= performance.now() - started;
+    text += piece;
+    onText?.(text);
+  }
+  const response = await result.response;
   return {
-    text: result.response.text(),
-    source: result.response.inferenceSource, // InferenceSource.ON_DEVICE ("on_device") or IN_CLOUD ("in_cloud")
+    text,
+    source: response.inferenceSource, // InferenceSource.ON_DEVICE or IN_CLOUD
+    firstMs,
+    totalMs: performance.now() - started,
   };
 }
 
 /** The guide's `ask(prompt)` — coaching prompt through the hybrid model. */
-export const ask = (prompt) => run(coachModel, prompt);
+export const ask = (prompt, onText) => run(coachModel, prompt, onText);
 
 /** Long report, routed cloud-first. */
-export const report = (prompt) => run(reportModel, prompt);
+export const report = (prompt, onText) => run(reportModel, prompt, onText);
 
-/** Free-text symptom note → { tags, severity, summary }. */
-export async function tagSymptoms(note) {
+const privacyError = (message) => Object.assign(new Error(message), { privacy: true });
+
+/**
+ * Free-text symptom note → { tags, severity, summary }, behind a privacy gate:
+ * on-device only, and the note leaves the device only if `confirmCloud()`
+ * returns true.
+ */
+export async function tagSymptoms(note, { confirmCloud }) {
   const prompt =
     "Classify this symptom note from a person wearing an ECG T-shirt. " +
     `Use only these tags: ${SYMPTOM_TAGS.join(", ")}. ` +
     "Reply with JSON only.\n\nNote: " + note;
-  const { text, source } = await run(symptomModel, prompt);
-  return { data: JSON.parse(text), text, source };
+  const parse = (r) => ({ ...r, data: JSON.parse(r.text) });
+
+  if ((await checkDeviceModel()) === "available") {
+    try {
+      return parse(await run(privateSymptomModel, prompt));
+    } catch (err) {
+      console.warn("On-device symptom tagging failed", err);
+    }
+  }
+  if (!navigator.onLine) {
+    throw privacyError("The on-device model can't process this note and you're offline. Nothing was sent.");
+  }
+  if (!(await confirmCloud())) {
+    throw privacyError("Your note stayed on this device. Nothing was sent to the cloud.");
+  }
+  return parse(await run(cloudSymptomModel, prompt));
 }
 
 // ── Step 6: on-device model ─────────────────────────────────────────────────

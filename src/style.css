@@ -197,3 +197,9 @@ details.card[open] > summary::before { content: "▾ "; }
 .profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0 8px; }
 .profile label { display: flex; flex-direction: column; font-size: 13px; gap: 4px; }
 .profile input { font: inherit; font-size: 14px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-h); min-width: 0; }
+
+/* ── Request log ── */
+.log { margin-top: 10px; font-size: 13px; overflow-x: auto; }
+.log summary { cursor: pointer; }
+.log table { border-collapse: collapse; width: 100%; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.log th, .log td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
