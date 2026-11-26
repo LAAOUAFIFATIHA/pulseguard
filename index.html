@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PulseGuard</title>
+  </head>
+  <body>
+    <main id="app">
+      <header>
+        <h1>PulseGuard</h1>
+        <p class="tagline">ECG coaching with hybrid AI — Gemini Nano on device, Gemini in the cloud.</p>
+        <div class="status-row">
+          <span id="net-status" class="pill" aria-live="assertive"></span>
+          <span id="device-status" class="pill neutral" aria-live="polite"></span>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>1. On-device model</h2>
+        <p class="hint">Click once after the page loads (Chrome needs a click before it can download Gemini Nano).</p>
+        <button id="init">Prepare on-device model</button>
+        <p id="progress" aria-live="polite"></p>
+      </section>
+
+      <section class="card">
+        <h2>2. Ask</h2>
+        <div id="examples">
+          <span>Examples:</span>
+          <button id="ex-coach" class="chip" type="button">Coaching tip</button>
+          <button id="ex-report" class="chip" type="button">ECG report</button>
+          <button id="ex-symptom" class="chip" type="button">Symptom note</button>
+        </div>
+        <textarea id="prompt" rows="4" placeholder="Ask for coaching, paste an ECG summary, or describe a symptom…"></textarea>
+        <div class="actions">
+          <button id="ask" class="primary">Ask (coach · prefer on-device)</button>
+          <button id="report">Report (prefer cloud)</button>
+          <button id="symptom">Tag symptoms (JSON)</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="answer-head">
+          <h2>Answer</h2>
+          <span id="badge" aria-live="polite"></span>
+        </div>
+        <p id="error-msg" role="alert"></p>
+        <pre id="answer" aria-live="polite"></pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
