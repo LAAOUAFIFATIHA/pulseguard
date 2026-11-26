@@ -1,10 +1,12 @@
 import "./style.css";
 import { ask, report, tagSymptoms, initDeviceModel, checkDeviceModel, InferenceSource } from "./ai.js";
+import { createMonitor } from "./monitor.js";
+import { buildCoachPrompt, buildReportPrompt } from "./prompts.js";
 
 const $ = (id) => document.getElementById(id);
-const ACTION_BUTTONS = ["ask", "report", "symptom"];
+const AI_BUTTONS = ["ask", "report", "symptom", "coach-now", "doctor-report"];
 
-// ── Example prompts ─────────────────────────────────────────────────────────
+// ── Example prompts (free-prompt panel) ─────────────────────────────────────
 const EXAMPLES = {
   "ex-coach":
     "My heart rate is 152 bpm during a 20-minute jog and my target zone is 130-145 bpm. " +
@@ -62,18 +64,20 @@ function showBadge(source) {
   $("badge").className = onDevice ? "on-device" : "in-cloud";
 }
 
+let busy = false;
 function setLoading(on) {
-  ACTION_BUTTONS.forEach((id) => ($(id).disabled = on));
+  busy = on;
+  AI_BUTTONS.forEach((id) => ($(id).disabled = on));
   if (on) $("answer").textContent = "Thinking…";
 }
 
-/** Turn SDK / network errors into a message a user can act on (Step 8). */
-function explain(err, task) {
+/** Turn SDK / network errors into a message a user can act on. */
+function explain(err, kind) {
   const msg = err?.message || String(err);
   if (!navigator.onLine) {
-    return task === "report"
+    return kind === "report"
       ? "You're offline and the on-device model isn't ready, so the report can't be written. Reconnect and try again."
-      : "You're offline and the on-device model isn't ready. Prepare it (step 1) while online, or reconnect.";
+      : "You're offline and the on-device model isn't ready. Prepare it while online, or reconnect.";
   }
   if (/app.?check|403|401|PERMISSION_DENIED/i.test(msg)) {
     return "Request rejected by App Check. Register the debug token printed in the console (Firebase console → App Check → Manage debug tokens). " + msg;
@@ -81,43 +85,73 @@ function explain(err, task) {
   return "Request failed: " + msg;
 }
 
-async function runTask(task) {
+/** Send a prompt to the right model and show the answer + badge. */
+async function runAI(kind, prompt) {
   resetAnswer();
-  const prompt = $("prompt").value.trim();
   if (!prompt) {
     showError("Type a prompt or pick an example first.");
     return;
   }
+  $("last-prompt").textContent = prompt;
   setLoading(true);
   try {
-    if (task === "symptom") {
+    if (kind === "symptom") {
       const { data, source } = await tagSymptoms(prompt);
       $("answer").textContent = JSON.stringify(data, null, 2);
       showBadge(source);
     } else {
-      const { text, source } = await (task === "report" ? report(prompt) : ask(prompt));
+      const { text, source } = await (kind === "report" ? report(prompt) : ask(prompt));
       $("answer").textContent = text;
       showBadge(source);
     }
   } catch (err) {
     console.error(err);
     $("answer").textContent = "";
-    showError(explain(err, task));
+    showError(explain(err, kind));
   } finally {
     setLoading(false);
   }
 }
 
-// ── Wiring ──────────────────────────────────────────────────────────────────
-$("ask").onclick = () => runTask("coach");
-$("report").onclick = () => runTask("report");
-$("symptom").onclick = () => runTask("symptom");
+// ── Live ECG + AI coach ─────────────────────────────────────────────────────
+let lastAutoCoach = -Infinity;
+const monitor = createMonitor({
+  onAlert: (fresh, snap) => {
+    if (!$("auto-coach").checked || busy || !fresh.length) return;
+    if (snap.t - lastAutoCoach < 20) return; // don't flood the model
+    lastAutoCoach = snap.t;
+    runAI("coach", buildCoachPrompt(snap));
+  },
+});
+
+$("coach-now").onclick = () => {
+  if (!monitor.hasData()) {
+    resetAnswer();
+    showError("Start the live ECG and wait a few seconds for a heart rate first.");
+    return;
+  }
+  runAI("coach", buildCoachPrompt(monitor.snapshot()));
+};
+
+$("doctor-report").onclick = () => {
+  if (!monitor.hasData()) {
+    resetAnswer();
+    showError("Record some ECG first: start the live ECG, try a few scenarios, then ask for the report.");
+    return;
+  }
+  runAI("report", buildReportPrompt(monitor.summary()));
+};
+
+// ── Free prompts (Part 1 tools) ─────────────────────────────────────────────
+$("ask").onclick = () => runAI("coach", $("prompt").value.trim());
+$("report").onclick = () => runAI("report", $("prompt").value.trim());
+$("symptom").onclick = () => runAI("symptom", $("prompt").value.trim());
 
 for (const [id, text] of Object.entries(EXAMPLES)) {
   $(id).onclick = () => ($("prompt").value = text);
 }
 
-// Step 6: initializeDeviceModel must follow a user click.
+// initializeDeviceModel must follow a user click.
 $("init").onclick = async () => {
   const status = await checkDeviceModel();
   if (status === "unavailable" || status === "unsupported") {

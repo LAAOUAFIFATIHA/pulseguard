@@ -18,6 +18,22 @@ Then fill `.env` with your Firebase web config and open the address Vite prints 
 
 Create a Firebase project (Analytics not needed, Spark plan is fine), open **AI Services → AI Logic → Get started**, choose the **Gemini Developer API**, and finish the workflow (it enforces App Check for AI Logic). Register a web app under **Project settings → Your apps → Web** and copy its config into `.env`. Run `npm run dev`, copy the `App Check debug token` printed in the browser console, and add it under **Security → App Check → Apps → Manage debug tokens** (optionally also put it in `.env` as `VITE_APPCHECK_DEBUG_TOKEN` so it stays the same).
 
+## Live ECG monitor
+
+The smart T-shirt is simulated ([`src/ecg.js`](src/ecg.js)): a synthetic ECG (P, QRS and T waves) is generated in real time and drawn as a heart-monitor sweep. Heart rate is **measured from the signal** by an R-peak detector, and threshold rules in [`src/anomaly.js`](src/anomaly.js) raise alerts once a condition lasts 8 seconds:
+
+| Alert | Rule |
+| --- | --- |
+| Fast heart rate at rest | above 120 bpm while resting |
+| Slow heart rate | below 50 bpm |
+| Irregular rhythm | R-R interval variation (CV) above 15 % |
+| Above exercise target zone | above 145 bpm while exercising |
+| Signal lost | no beat for 3 s |
+
+**Coach me now** sends the live reading as a short single-turn prompt (on-device first); **Doctor report** sends the whole session with its alert timeline (cloud first). Prompts are built in [`src/prompts.js`](src/prompts.js). Run `npm test` to check the rules against every scenario.
+
+PulseGuard is a demo, not a medical device.
+
 ## How hybrid inference is used
 
 All AI calls are in [`src/ai.js`](src/ai.js):

@@ -17,15 +17,74 @@
         </div>
       </header>
 
+      <!-- Live ECG monitor -->
       <section class="card">
-        <h2>1. On-device model</h2>
-        <p class="hint">Click once after the page loads (Chrome needs a click before it can download Gemini Nano).</p>
-        <button id="init">Prepare on-device model</button>
-        <p id="progress" aria-live="polite"></p>
+        <div class="card-head">
+          <h2>Live ECG <span class="sim-tag">simulated T-shirt</span></h2>
+          <div class="controls">
+            <label for="scenario" class="sr-only">Scenario</label>
+            <select id="scenario"></select>
+            <button id="start" class="primary">Start</button>
+            <button id="restart">Restart</button>
+          </div>
+        </div>
+
+        <div class="monitor">
+          <div id="hr-box" data-state="ok">
+            <div class="hr-line">
+              <span id="hr-heart" aria-hidden="true">♥</span>
+              <span id="hr-value">--</span>
+              <span class="unit">bpm</span>
+            </div>
+            <div class="hr-meta">
+              <span id="activity">Rest</span> · <span id="rhythm">Rhythm: measuring…</span>
+            </div>
+            <div class="hr-meta">Session <span id="session-time">00:00</span></div>
+          </div>
+          <canvas id="ecg-canvas" aria-label="Live ECG trace"></canvas>
+        </div>
+
+        <h3>Alerts</h3>
+        <ul id="alerts" aria-live="polite"></ul>
+        <p class="disclaimer">Demo only. PulseGuard is not a medical device and uses simple threshold rules.</p>
+      </section>
+
+      <!-- AI on the ECG data -->
+      <section class="card">
+        <h2>AI coach</h2>
+        <div class="actions">
+          <button id="coach-now" class="primary">Coach me now (prefer on-device)</button>
+          <button id="doctor-report">Doctor report (prefer cloud)</button>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="auto-coach" />
+          Ask the coach automatically when a new alert starts
+        </label>
       </section>
 
       <section class="card">
-        <h2>2. Ask</h2>
+        <div class="answer-head">
+          <h2>Answer</h2>
+          <span id="badge" aria-live="polite"></span>
+        </div>
+        <p id="error-msg" role="alert" hidden></p>
+        <pre id="answer" aria-live="polite"></pre>
+        <details id="prompt-details">
+          <summary>Prompt sent to the model</summary>
+          <pre id="last-prompt"></pre>
+        </details>
+      </section>
+
+      <!-- Part 1 tools -->
+      <details class="card" id="tools">
+        <summary><h2>On-device model and free prompts</h2></summary>
+
+        <h3>On-device model</h3>
+        <p class="hint">Click once after the page loads (Chrome needs a click before it can download Gemini Nano).</p>
+        <button id="init">Prepare on-device model</button>
+        <p id="progress" aria-live="polite"></p>
+
+        <h3>Ask anything</h3>
         <div id="examples">
           <span>Examples:</span>
           <button id="ex-coach" class="chip" type="button">Coaching tip</button>
@@ -34,20 +93,11 @@
         </div>
         <textarea id="prompt" rows="4" placeholder="Ask for coaching, paste an ECG summary, or describe a symptom…"></textarea>
         <div class="actions">
-          <button id="ask" class="primary">Ask (coach · prefer on-device)</button>
+          <button id="ask">Ask (coach · prefer on-device)</button>
           <button id="report">Report (prefer cloud)</button>
           <button id="symptom">Tag symptoms (JSON)</button>
         </div>
-      </section>
-
-      <section class="card">
-        <div class="answer-head">
-          <h2>Answer</h2>
-          <span id="badge" aria-live="polite"></span>
-        </div>
-        <p id="error-msg" role="alert"></p>
-        <pre id="answer" aria-live="polite"></pre>
-      </section>
+      </details>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>
