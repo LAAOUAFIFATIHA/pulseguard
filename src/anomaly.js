@@ -1,18 +1,11 @@
+import { DEFAULT_RULES } from "./rules.js";
 // Beat detection + threshold anomaly rules. Pure logic (no DOM) so it can be
 // unit-tested with `npm test` and reused with a real sensor later.
 //
 // PulseGuard is a hackathon demo, not a medical device: thresholds are simple
 // textbook values, not clinical criteria.
 
-export const DEFAULT_RULES = {
-  tachyRest: 120, // bpm, at rest
-  brady: 50, // bpm
-  zoneMin: 130, // exercise target zone
-  zoneMax: 145,
-  irregularCv: 0.15, // coefficient of variation of R-R intervals
-  sustainSec: 8, // a condition must last this long to raise an alert
-  noSignalSec: 3, // no beat for this long = signal lost
-};
+export { DEFAULT_RULES };
 
 export const ALERTS = {
   noSignal: { label: "Signal lost: check the electrodes", severity: "warning" },
