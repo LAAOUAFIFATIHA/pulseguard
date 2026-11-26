@@ -39,3 +39,9 @@ notes.md
 # Training data (health data: never commit)
 ml/data/
 __pycache__/
+
+# Emulator logs and service account keys
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+serviceAccount*.json

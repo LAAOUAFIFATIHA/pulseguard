@@ -1,9 +1,92 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Health data: each signed-in user sees only their own documents.
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // Everything not matched below is denied.
+
+    // Own data only, and only with a verified email.
+    function isOwner(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true;
+    }
+
+    function optInt(d, key, lo, hi) {
+      return !(key in d) || (d[key] is int && d[key] >= lo && d[key] <= hi);
+    }
+    function optChoice(d, key, choices) {
+      return !(key in d) || d[key] in choices;
+    }
+    function numOrNull(v, lo, hi) {
+      return v == null || (v is number && v >= lo && v <= hi);
+    }
+    function shortString(v, max) {
+      return v is string && v.size() >= 1 && v.size() <= max;
+    }
+
+    function validProfile(d) {
+      return d.keys().hasOnly(['displayName', 'age', 'restingHr', 'role', 'sex', 'runner',
+                               'heightCm', 'weightKg', 'consentAt', 'updatedAt'])
+        && d.keys().hasAll(['displayName', 'age', 'role', 'consentAt', 'updatedAt'])
+        && shortString(d.displayName, 60)
+        && d.age is int && d.age >= 13 && d.age <= 100
+        && d.role in ['athlete', 'coach']
+        && optInt(d, 'restingHr', 30, 120)
+        && optInt(d, 'heightCm', 100, 230)
+        && optInt(d, 'weightKg', 30, 250)
+        && optChoice(d, 'sex', ['female', 'male'])
+        && optChoice(d, 'runner', ['not a runner', 'occasional runner', 'regular runner', 'athlete'])
+        && d.consentAt is timestamp
+        && d.updatedAt == request.time;
+    }
+
+    function validWindow(d) {
+      return d.keys().hasOnly(['startAt', 'seconds', 'label', 'activity', 'motion', 'beats', 'avgHr',
+                               'minHr', 'maxHr', 'rrCv', 'avgTempC', 'avgHumidity', 'alerts'])
+        && d.keys().hasAll(['startAt', 'seconds', 'label', 'activity', 'beats', 'alerts'])
+        && d.startAt is timestamp
+        && d.seconds is number && d.seconds > 0 && d.seconds <= 10
+        && shortString(d.label, 30)
+        && d.activity in ['rest', 'exercise']
+        && d.get('motion', null) in [null, 'still', 'moving']
+        && d.beats is int && d.beats >= 0 && d.beats <= 50
+        && numOrNull(d.get('avgHr', null), 0, 300)
+        && numOrNull(d.get('minHr', null), 0, 300)
+        && numOrNull(d.get('maxHr', null), 0, 300)
+        && numOrNull(d.get('rrCv', null), 0, 5)
+        && numOrNull(d.get('avgTempC', null), 0, 60)
+        && numOrNull(d.get('avgHumidity', null), 0, 100)
+        && d.alerts is list && d.alerts.size() <= 10;
+    }
+
+    function validEvent(d) {
+      return d.keys().hasOnly(['type', 'severity', 'startAt', 'endAt', 'peakHr'])
+        && d.keys().hasAll(['type', 'severity', 'startAt', 'endAt', 'peakHr'])
+        && d.type in ['noSignal', 'tachyRest', 'brady', 'irregular', 'aboveZone']
+        && d.severity in ['info', 'warning', 'medium', 'high']
+        && d.startAt is timestamp
+        && (d.endAt == null || d.endAt is timestamp)
+        && numOrNull(d.peakHr, 0, 300);
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile(request.resource.data);
+      allow update: if isOwner(uid) && validProfile(request.resource.data)
+        && request.resource.data.consentAt == resource.data.consentAt;
+      allow delete: if isOwner(uid);
+
+      match /windows/{id} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validWindow(request.resource.data);
+      }
+
+      match /events/{id} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validEvent(request.resource.data);
+        // an event may only be closed and have its peak updated
+        allow update: if isOwner(uid) && validEvent(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endAt', 'peakHr']);
+      }
     }
   }
 }
