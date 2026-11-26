@@ -5,7 +5,7 @@ PulseGuard is an ECG coaching companion for Chrome. It uses **Firebase AI Logic 
 ## Run it
 
 ```bash
-git clone https://github.com/<your-username>/pulseguard.git
+git clone https://github.com/LAAOUAFIFATIHA/pulseguard.git
 cd pulseguard
 npm install
 cp .env.example .env
