@@ -61,6 +61,18 @@ function statsRow(stats) {
   return row;
 }
 
+/** A message the user can act on. */
+function feedError(err) {
+  if (err?.code === "permission-denied") {
+    return "The feed is blocked by the database rules. Publish the latest rules: firebase deploy --only firestore";
+  }
+  if (err?.code === "failed-precondition") {
+    return "The feed needs its database indexes. Publish them: firebase deploy --only firestore (they take a few minutes to build).";
+  }
+  if (!navigator.onLine) return "You are offline. The feed needs a connection.";
+  return "Could not load the feed. Try again.";
+}
+
 export function initHome() {
   let feed = null;
   let loading = false;
@@ -148,7 +160,7 @@ export function initHome() {
       say("");
     } catch (err) {
       console.error(err);
-      say("Could not load the feed. Check your connection.");
+      say(feedError(err));
     } finally {
       loading = false;
       $("feed-more").disabled = false;
@@ -165,7 +177,7 @@ export function initHome() {
       await loadMore();
     } catch (err) {
       console.error(err);
-      say("Could not load the feed.");
+      say(feedError(err));
     }
   }
   $("feed-more").onclick = loadMore;
