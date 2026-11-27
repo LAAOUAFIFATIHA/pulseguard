@@ -131,6 +131,21 @@ service cloud.firestore {
       return h is string && h.matches('^[a-z0-9_]{3,20}$');
     }
 
+    // ── Follow, private accounts, blocks ─────────────────────────────────
+    function blockedBy(owner) {
+      return exists(/databases/$(database)/documents/users/$(owner)/blocked/$(request.auth.uid));
+    }
+    function isPrivate(uid) {
+      return get(/databases/$(database)/documents/profiles/$(uid)).data.get('private', false) == true;
+    }
+    function follows(a, b) {
+      return exists(/databases/$(database)/documents/users/$(a)/following/$(b));
+    }
+    function canSeeNetwork(uid) {
+      return verified() && !blockedBy(uid)
+        && (request.auth.uid == uid || !isPrivate(uid) || follows(request.auth.uid, uid));
+    }
+
     // ── Run posts ────────────────────────────────────────────────────────
     function myCard() {
       return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
@@ -138,9 +153,20 @@ service cloud.firestore {
     function canSeePost(p) {
       return verified()
         && (p.ownerUid == request.auth.uid
+            || (!blockedBy(p.ownerUid)
+                && (p.visibility == 'public'
+                    || (p.visibility == 'followers' && follows(request.auth.uid, p.ownerUid))
+                    || (p.visibility == 'friends' && areFriends(p.ownerUid, request.auth.uid)))));
+    }
+    // Lists cannot check blocks per post (a Firestore limit); the app hides blocked people.
+    function canListPost(p) {
+      return verified()
+        && (p.ownerUid == request.auth.uid
             || p.visibility == 'public'
+            || (p.visibility == 'followers' && follows(request.auth.uid, p.ownerUid))
             || (p.visibility == 'friends' && areFriends(p.ownerUid, request.auth.uid)));
     }
+
     // Summary numbers only: never raw ECG, location or AI answers.
     function validStats(st) {
       return st is map
@@ -157,7 +183,7 @@ service cloud.firestore {
     function postFields(d) {
       return d.keys().hasOnly(['ownerUid', 'author', 'createdAt', 'caption', 'visibility', 'stats', 'trend', 'likeCount'])
         && d.caption is string && d.caption.size() <= 280
-        && d.visibility in ['public', 'friends', 'private']
+        && d.visibility in ['public', 'followers', 'friends', 'private']
         && validStats(d.stats)
         && d.trend is list && d.trend.size() <= 60
         && d.likeCount is int && d.likeCount >= 0;
@@ -275,6 +301,54 @@ service cloud.firestore {
         allow create: if isOwner(uid) && validWindow(request.resource.data);
       }
 
+      // uid follows target: public accounts instantly, private ones after approval
+      match /following/{target} {
+        allow read: if canSeeNetwork(uid);
+        allow create: if verified() && target != uid
+          && request.resource.data.keys().hasOnly(['since']) && request.resource.data.since == request.time
+          && existsAfter(/databases/$(database)/documents/users/$(target)/followers/$(uid))
+          && ((request.auth.uid == uid && !blockedBy(target) && !isPrivate(target))
+              || (request.auth.uid == target && exists(/databases/$(database)/documents/users/$(target)/followRequests/$(uid))
+                  && !existsAfter(/databases/$(database)/documents/users/$(target)/followRequests/$(uid))));
+        allow delete: if verified() && (request.auth.uid == uid || request.auth.uid == target)
+          && !existsAfter(/databases/$(database)/documents/users/$(target)/followers/$(uid));
+      }
+
+      match /followers/{f} {
+        allow read: if canSeeNetwork(uid);
+        allow create: if verified() && f != uid
+          && request.resource.data.keys().hasOnly(['since']) && request.resource.data.since == request.time
+          && existsAfter(/databases/$(database)/documents/users/$(f)/following/$(uid))
+          && ((request.auth.uid == f && !blockedBy(uid) && !isPrivate(uid))
+              || (request.auth.uid == uid && exists(/databases/$(database)/documents/users/$(uid)/followRequests/$(f))));
+        allow delete: if verified() && (request.auth.uid == f || request.auth.uid == uid)
+          && !existsAfter(/databases/$(database)/documents/users/$(f)/following/$(uid));
+      }
+
+      // follow requests to a private account
+      match /followRequests/{f} {
+        allow read, delete: if verified() && (request.auth.uid == uid || request.auth.uid == f);
+        allow create: if verified() && request.auth.uid == f && f != uid
+          && isPrivate(uid) && !blockedBy(uid)
+          && request.resource.data.keys().hasOnly(['since', 'name', 'handle', 'avatar'])
+          && request.resource.data.since == request.time
+          && request.resource.data.handle == myCard().handle
+          && request.resource.data.name == myCard().displayName
+          && request.resource.data.avatar == myCard().avatar;
+      }
+
+      // only the owner sees who they blocked or muted
+      match /blocked/{other} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && other != uid
+          && request.resource.data.keys().hasOnly(['since']) && request.resource.data.since == request.time;
+      }
+      match /muted/{other} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && other != uid
+          && request.resource.data.keys().hasOnly(['since']) && request.resource.data.since == request.time;
+      }
+
       // mirrored on both sides when a connection is accepted
       match /friends/{fid} {
         allow read: if isOwner(uid);
@@ -390,7 +464,8 @@ service cloud.firestore {
     // ── Public cards and handles ────────────────────────────────────────
     match /profiles/{uid} {
       // findable cards for everyone signed in; otherwise only people you are connected with
-      allow get: if isOwner(uid) || (verified() && resource.data.discoverable == true) || connectedTo(uid);
+      allow get: if isOwner(uid)
+        || (verified() && !blockedBy(uid) && (resource.data.discoverable == true || connectedTo(uid) || follows(request.auth.uid, uid)));
       allow list: if verified() && resource.data.discoverable == true;
       allow create, update: if isOwner(uid) && validCard(request.resource.data, uid);
       allow delete: if isOwner(uid);
@@ -421,6 +496,8 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.users
         && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == request.time
+        && !exists(/databases/$(database)/documents/users/$(request.resource.data.users[0])/blocked/$(request.resource.data.users[1]))
+        && !exists(/databases/$(database)/documents/users/$(request.resource.data.users[1])/blocked/$(request.resource.data.users[0]))
         // you can only ask people who can find you, i.e. who chose to be findable
         && get(/databases/$(database)/documents/profiles/$(
              request.resource.data.users[0] == request.auth.uid
@@ -447,6 +524,7 @@ service cloud.firestore {
         && teamCode(request.resource.data.teamCode)
         && iid == request.resource.data.teamCode + '_' + request.resource.data.to
         && areFriends(request.auth.uid, request.resource.data.to)
+        && !blockedBy(request.resource.data.to)
         && exists(/databases/$(database)/documents/teams/$(request.resource.data.teamCode)/members/$(request.auth.uid))
         && shortString(request.resource.data.fromName, 60)
         && shortString(request.resource.data.teamName, 40)
@@ -467,7 +545,8 @@ service cloud.firestore {
 
     // ── Run posts and likes ─────────────────────────────────────────────
     match /posts/{pid} {
-      allow read: if canSeePost(resource.data);
+      allow get: if canSeePost(resource.data);
+      allow list: if canListPost(resource.data);
       // the author block must match the poster's own public card
       allow create: if verified()
         && postFields(request.resource.data)
@@ -477,7 +556,9 @@ service cloud.firestore {
         && request.resource.data.author.handle == myCard().handle
         && request.resource.data.author.avatar == myCard().avatar
         && request.resource.data.createdAt == request.time
-        && request.resource.data.likeCount == 0;
+        && request.resource.data.likeCount == 0
+        // a private account shares with followers, never publicly
+        && !(request.resource.data.visibility == 'public' && myCard().get('private', false) == true);
       // the owner edits caption and visibility only
       allow update: if verified() && resource.data.ownerUid == request.auth.uid
         && postFields(request.resource.data)
@@ -497,6 +578,7 @@ service cloud.firestore {
       match /comments/{cid} {
         allow read: if canSeePost(get(/databases/$(database)/documents/posts/$(pid)).data);
         allow create: if canSeePost(get(/databases/$(database)/documents/posts/$(pid)).data)
+          && !blockedBy(get(/databases/$(database)/documents/posts/$(pid)).data.ownerUid)
           && request.resource.data.keys().hasOnly(['uid', 'author', 'text', 'createdAt', 'hidden'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.author.keys().hasOnly(['name', 'handle', 'avatar'])

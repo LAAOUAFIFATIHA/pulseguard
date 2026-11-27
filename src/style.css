@@ -508,6 +508,32 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .avatar-emoji.sm { width: 30px; height: 30px; font-size: 15px; }
 .comment-form { display: flex; gap: 8px; }
 
+/* ── Profiles ── */
+.pf-head { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.avatar-xl { width: 96px; height: 96px; font-size: 46px; }
+.pf-info { flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pf-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.pf-title h2 { font-size: 24px; }
+.pf-rank { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text-h); }
+.pf-meta { color: var(--muted); font-size: 14px; }
+.pf-bio { color: var(--text-h); overflow-wrap: anywhere; }
+.pf-counts { display: flex; gap: 26px; margin: 6px 0; flex-wrap: wrap; }
+.pf-count { display: flex; flex-direction: column; }
+.pf-count strong { font-size: 20px; color: var(--text-h); font-variant-numeric: tabular-nums; }
+.pf-count span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.pf-actions { margin-top: 4px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs button { font: inherit; font-weight: 600; font-size: 14px; color: var(--muted); background: none; border: 0; padding: 10px 16px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.panel-stack { display: flex; flex-direction: column; gap: 18px; }
+.empty-line { text-align: center; padding: 30px 0; }
+.link-name { cursor: pointer; }
+.link-name:hover { text-decoration: underline; }
+.feed-tabs { display: inline-flex; gap: 4px; margin-top: 12px; background: rgba(255, 255, 255, 0.12); border-radius: 999px; padding: 4px; }
+.feed-tabs button { font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 999px; padding: 6px 14px; color: var(--on-dark-1); background: none; cursor: pointer; }
+.feed-tabs button[aria-selected="true"] { background: #fff; color: var(--p-cosmos); }
+#privacy-account { min-width: 240px; }
+
 /* ── Profile and settings ───────────────────────────────────────────── */
 .profile-hero { display: flex; align-items: center; gap: 18px; }
 .profile-hero h2 { font-size: 22px; }

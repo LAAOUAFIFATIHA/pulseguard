@@ -48,6 +48,7 @@ import {
   orderBy,
   limit,
   startAfter,
+  getCountFromServer,
   increment,
 } from "firebase/firestore";
 import { app } from "./firebase.js";
@@ -542,16 +543,25 @@ export async function setLike(id, like) {
 
 const asPost = (d) => ({ id: d.id, ...d.data(), createdAtMs: d.data().createdAt?.toMillis?.() ?? Date.now() });
 
-/** Feed of public posts, my posts and my friends' friends-only posts. */
-export async function openFeed() {
-  const friends = await getDocs(sub("friends")).then((s) => s.docs.map((d) => d.id)).catch(() => []);
+/**
+ * "following": my posts, my friends' friends-only posts and the posts of people I follow.
+ * "community": every public post.
+ */
+export async function openFeed(mode = "following") {
   const posts = collection(db, "posts");
   const newest = [orderBy("createdAt", "desc"), limit(PAGE)];
-  const sources = {
-    public: () => [where("visibility", "==", "public")],
-    mine: () => [where("ownerUid", "==", uid())],
-  };
-  for (const f of friends) sources["friend:" + f] = () => [where("ownerUid", "==", f), where("visibility", "==", "friends")];
+  const sources = {};
+  if (mode === "community") {
+    sources.public = () => [where("visibility", "==", "public")];
+  } else {
+    const [friends, following] = await Promise.all([
+      getDocs(sub("friends")).then((x) => x.docs.map((d) => d.id)).catch(() => []),
+      getDocs(sub("following")).then((x) => x.docs.map((d) => d.id)).catch(() => []),
+    ]);
+    sources.mine = () => [where("ownerUid", "==", uid())];
+    for (const f of friends) sources["friend:" + f] = () => [where("ownerUid", "==", f), where("visibility", "==", "friends")];
+    for (const f of following) sources["follow:" + f] = () => [where("ownerUid", "==", f), where("visibility", "in", ["public", "followers"])];
+  }
 
   return createFeedMerger(Object.keys(sources), async (id, cursor) => {
     const parts = [...sources[id](), ...newest];
@@ -591,6 +601,137 @@ export const report = (postId, commentId, reason) =>
     reason,
     createdAt: serverTimestamp(),
   });
+
+// ── Follow, private accounts, block and mute ─────────────────────────────
+const rel = (owner, coll, other) => doc(db, "users", owner, coll, other);
+const exists = (ref) => getDoc(ref).then((x) => x.exists()).catch(() => false);
+
+/** How I relate to another runner. */
+export async function relationTo(other) {
+  const me = uid();
+  const [following, requested, blocked, muted, followsMe] = await Promise.all([
+    exists(rel(me, "following", other)),
+    exists(rel(other, "followRequests", me)),
+    exists(rel(me, "blocked", other)),
+    exists(rel(me, "muted", other)),
+    exists(rel(me, "followers", other)),
+  ]);
+  const conn = await getDoc(connRef(connectionId(me, other))).then((x) => (x.exists() ? { id: x.id, ...x.data() } : null)).catch(() => null);
+  return { following, requested, blocked, muted, followsMe, conn, friend: conn?.status === "accepted" };
+}
+
+/** Follows a public account at once; asks a private one. */
+export async function followUser(other, otherCard) {
+  if (otherCard?.private) {
+    await setDoc(rel(other, "followRequests", uid()), {
+      since: serverTimestamp(), name: card.displayName, handle: card.handle, avatar: card.avatar,
+    });
+    return "requested";
+  }
+  const batch = writeBatch(db);
+  batch.set(rel(uid(), "following", other), { since: serverTimestamp() });
+  batch.set(rel(other, "followers", uid()), { since: serverTimestamp() });
+  await batch.commit();
+  return "following";
+}
+
+export async function unfollowUser(other) {
+  const batch = writeBatch(db);
+  batch.delete(rel(uid(), "following", other));
+  batch.delete(rel(other, "followers", uid()));
+  await batch.commit();
+}
+
+export const cancelFollowRequest = (other) => deleteDoc(rel(other, "followRequests", uid()));
+
+export function watchFollowRequests(onChange, onError) {
+  return onSnapshot(sub("followRequests"), (snap) => onChange(snap.docs.map((d) => ({ uid: d.id, ...d.data() }))), onError);
+}
+
+export async function approveFollower(f) {
+  const batch = writeBatch(db);
+  batch.delete(rel(uid(), "followRequests", f));
+  batch.set(rel(uid(), "followers", f), { since: serverTimestamp() });
+  batch.set(rel(f, "following", uid()), { since: serverTimestamp() });
+  await batch.commit();
+}
+
+export const declineFollower = (f) => deleteDoc(rel(uid(), "followRequests", f));
+
+/** Blocks: also ends follows both ways, requests and the friendship. */
+export async function blockUser(other) {
+  const me = uid();
+  const relation = await relationTo(other);
+  const batch = writeBatch(db);
+  batch.set(rel(me, "blocked", other), { since: serverTimestamp() });
+  if (relation.following) {
+    batch.delete(rel(me, "following", other));
+    batch.delete(rel(other, "followers", me));
+  }
+  if (relation.followsMe) {
+    batch.delete(rel(other, "following", me));
+    batch.delete(rel(me, "followers", other));
+  }
+  if (relation.requested) batch.delete(rel(other, "followRequests", me));
+  batch.delete(rel(me, "followRequests", other));
+  if (relation.conn) {
+    batch.delete(connRef(relation.conn.id));
+    if (relation.friend) {
+      batch.delete(friendRef(me, other));
+      batch.delete(friendRef(other, me));
+    }
+  }
+  await batch.commit();
+}
+
+export const unblockUser = (other) => deleteDoc(rel(uid(), "blocked", other));
+export const muteUser = (other) => setDoc(rel(uid(), "muted", other), { since: serverTimestamp() });
+export const unmuteUser = (other) => deleteDoc(rel(uid(), "muted", other));
+
+export async function hiddenPeople() {
+  const [b, m] = await Promise.all([getDocs(sub("blocked")), getDocs(sub("muted"))].map((p) => p.catch(() => ({ docs: [] }))));
+  return { blocked: b.docs.map((d) => d.id), muted: m.docs.map((d) => d.id) };
+}
+
+/** Which post visibilities I may see from this runner. */
+export function visibleTo(relation, self) {
+  if (self) return ["public", "followers", "friends", "private"];
+  const v = ["public"];
+  if (relation.following) v.push("followers");
+  if (relation.friend) v.push("friends");
+  return v;
+}
+
+export async function postsOf(other, visibilities, max = 30) {
+  const snap = await getDocs(
+    query(collection(db, "posts"), where("ownerUid", "==", other), where("visibility", "in", visibilities), orderBy("createdAt", "desc"), limit(max))
+  );
+  return snap.docs.map(asPost);
+}
+
+/** Counters computed from the relation documents: nothing to tamper with. */
+export async function networkCounts(other, visibilities) {
+  const count = (q) => getCountFromServer(q).then((x) => x.data().count).catch(() => null);
+  const [followers, following, runs] = await Promise.all([
+    count(collection(db, "users", other, "followers")),
+    count(collection(db, "users", other, "following")),
+    count(query(collection(db, "posts"), where("ownerUid", "==", other), where("visibility", "in", visibilities))),
+  ]);
+  const friends = other === uid() ? await count(sub("friends")) : null;
+  return { followers, following, runs, friends };
+}
+
+/** Private: only followers see your runs; public posts become followers-only. */
+export async function setPrivate(on) {
+  await saveCard({ ...card, private: on });
+  if (!on) return;
+  const mine = await getDocs(query(collection(db, "posts"), where("ownerUid", "==", uid()), where("visibility", "==", "public")));
+  for (let i = 0; i < mine.docs.length; i += 400) {
+    const batch = writeBatch(db);
+    mine.docs.slice(i, i + 400).forEach((d) => batch.update(d.ref, { visibility: "followers" }));
+    await batch.commit();
+  }
+}
 
 async function deleteMyPosts() {
   const mine = await getDocs(query(collection(db, "posts"), where("ownerUid", "==", uid()))).catch(() => null);
@@ -675,6 +816,16 @@ export async function deleteAccount(password) {
   await loadCard().catch(() => null);
   await deleteMyPosts();
   await deleteSocial();
+  // end follows in both directions
+  for (const [coll, other] of [["following", "followers"], ["followers", "following"]]) {
+    const list = await getDocs(sub(coll)).catch(() => ({ docs: [] }));
+    for (const d of list.docs) {
+      const batch = writeBatch(db);
+      batch.delete(d.ref);
+      batch.delete(rel(d.id, other, uid()));
+      await batch.commit().catch(() => {});
+    }
+  }
 
   // pending applications to published teams
   for (const t of await listPublicTeams().catch(() => [])) {
@@ -687,7 +838,7 @@ export async function deleteAccount(password) {
     const team = await getTeam(code).catch(() => null);
     if (team?.ownerUid === user.uid) await deleteDoc(teamRef(code)).catch(() => {});
   }
-  for (const name of ["windows", "events", "runs", "ratingEvents", "rating", "badges", "runPlans"]) {
+  for (const name of ["windows", "events", "runs", "ratingEvents", "rating", "badges", "runPlans", "blocked", "muted", "followRequests"]) {
     const { docs } = await getDocs(sub(name)).catch(() => ({ docs: [] }));
     for (let i = 0; i < docs.length; i += 400) {
       const batch = writeBatch(db);

@@ -50,8 +50,10 @@ export function personRow(c, actions = []) {
   const row = el("article", "person");
   row.append(el("div", "avatar avatar-emoji", c?.avatar ?? "🏃"));
   const text = el("div", "person-text");
-  const name = el("strong", null, c?.displayName ?? "Hidden runner");
+  const name = el("strong", "link-name", c?.displayName ?? "Hidden runner");
+  if (c?.uid) name.onclick = () => (location.hash = `#/runner/${c.uid}`);
   text.append(name, el("span", "muted", c?.handle ? `@${c.handle}` : ""));
+  if (c?.rank) text.append(el("span", "rank-chip", c.rating != null ? `${c.rank} · ${c.rating}` : c.rank));
   const meta = [c?.city, RUNNER_LEVELS[c?.runnerLevel]].filter(Boolean).join(" · ");
   if (meta) text.append(el("span", "person-meta", meta));
   if (c?.bio) text.append(el("p", "person-bio", c.bio));
@@ -79,6 +81,7 @@ export function initFriends({ onTeamChange }) {
 
   async function cardFor(uid) {
     if (!cards.has(uid)) cards.set(uid, await cardOf(uid));
+    if (cards.get(uid)) cards.get(uid).uid = uid;
     return cards.get(uid);
   }
 
@@ -185,7 +188,7 @@ export function initFriends({ onTeamChange }) {
   }
 
   function renderSearch() {
-    $("search-results").replaceChildren(...lastResults.map((c) => personRow(c, actionsFor(c.uid))));
+    $("search-results").replaceChildren(...lastResults.map((c) => personRow(c, [button("Profile · Follow", "btn-outline", () => (location.hash = `#/runner/${c.uid}`)), ...actionsFor(c.uid)])));
   }
 
   function renderBadge() {

@@ -1,4 +1,5 @@
 // Home: feed of shared runs (public, friends, mine) and the Share-a-run dialog.
+import { hiddenPeople } from "./db.js";
 import { auth, getCard, sharePost, openFeed, setLike, likedByMe, deletePost, listComments, addComment, deleteComment, hideComment, report } from "./db.js";
 import { zoneSeconds, drift, enduranceScore } from "./rating.js";
 import { maxHeartRate } from "./runsummary.js";
@@ -11,6 +12,7 @@ import { timeAgo } from "./status.js";
 const $ = (id) => document.getElementById(id);
 const VISIBILITY = {
   public: ["i-globe", "Everyone"],
+  followers: ["i-team", "Followers"],
   friends: ["i-friends", "Friends"],
   private: ["i-lock", "Only me"],
 };
@@ -95,6 +97,8 @@ function feedError(err) {
 
 export function initHome() {
   let feed = null;
+  let mode = "following";
+  let hidden = new Set();
   let loading = false;
   let sharing = null;
   const say = (msg) => ($("feed-status").textContent = msg);
@@ -112,6 +116,8 @@ export function initHome() {
     meta.append(`@${p.author?.handle ?? ""} · ${timeAgo(p.createdAtMs)} · `, icon(visIcon), ` ${visLabel}`);
     who.append(meta);
     head.append(who);
+    who.querySelector("strong").classList.add("link-name");
+    who.querySelector("strong").onclick = () => (location.hash = `#/runner/${p.ownerUid}`);
     if (p.author?.handle?.startsWith("demo_")) head.append(el("span", "tag", "Demo"));
     if (!mine) {
       const flag = el("button", "icon-btn sm");
@@ -194,7 +200,7 @@ export function initHome() {
     loading = true;
     $("feed-more").disabled = true;
     try {
-      const page = await feed.next();
+      const page = (await feed.next()).filter((p) => !hidden.has(p.ownerUid));
       const liked = await Promise.all(page.map((p) => likedByMe(p.id)));
       $("feed").append(...page.map((p, i) => postCard(p, liked[i])));
       const empty = !$("feed").children.length;
@@ -216,7 +222,9 @@ export function initHome() {
     $("feed-more").hidden = true;
     say("Loading…");
     try {
-      feed = await openFeed();
+      const h = await hiddenPeople();
+      hidden = new Set([...h.blocked, ...h.muted]);
+      feed = await openFeed(mode);
       await loadMore();
     } catch (err) {
       console.error(err);
@@ -224,6 +232,14 @@ export function initHome() {
     }
   }
   $("feed-more").onclick = loadMore;
+  for (const [id, m] of [["feed-following", "following"], ["feed-community", "community"]]) {
+    $(id).onclick = () => {
+      mode = m;
+      $("feed-following").setAttribute("aria-selected", String(m === "following"));
+      $("feed-community").setAttribute("aria-selected", String(m === "community"));
+      enter();
+    };
+  }
 
   // ── Share a run ─────────────────────────────────────────────────────────
   // ── Comments ────────────────────────────────────────────────────────────
@@ -365,6 +381,11 @@ export function initHome() {
     preview.append(g);
     $("share-caption").value = "";
     $("share-status").textContent = "";
+    // a private account shares with followers at most
+    const vis = $("share-visibility");
+    const priv = getCard()?.private === true;
+    vis.querySelector('option[value="public"]').disabled = priv;
+    if (priv && vis.value === "public") vis.value = "followers";
     $("share-dialog").showModal();
   }
 
@@ -388,5 +409,5 @@ export function initHome() {
     }
   };
 
-  return { enter, openShare, setLastRun, shareLastRun };
+  return { enter, openShare, setLastRun, shareLastRun, renderPost: postCard };
 }

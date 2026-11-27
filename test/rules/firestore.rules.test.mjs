@@ -614,3 +614,75 @@ test("posts may carry endurance and zones, nothing else", async () => {
   await assertSucceeds(setDoc(doc(as("alice"), "posts/z1"), post("alice", "public", { stats })));
   await assertFails(setDoc(doc(as("alice"), "posts/z2"), post("alice", "public", { stats: { ...stats, endurance: 150 } })));
 });
+
+// ── Part A: follow, private accounts, blocks ───────────────────────────────
+function follow(db, me, target) {
+  const b = writeBatch(db);
+  b.set(doc(db, `users/${me}/following/${target}`), { since: serverTimestamp() });
+  b.set(doc(db, `users/${target}/followers/${me}`), { since: serverTimestamp() });
+  return b.commit();
+}
+function unfollow(db, me, target) {
+  const b = writeBatch(db);
+  b.delete(doc(db, `users/${me}/following/${target}`));
+  b.delete(doc(db, `users/${target}/followers/${me}`));
+  return b.commit();
+}
+
+test("follow: public accounts instantly, only for yourself, both sides together", async () => {
+  await seedCards();
+  await assertSucceeds(follow(as("carol"), "carol", "bob"));
+  await assertFails(follow(as("mallory"), "alice", "bob")); // for someone else
+  await assertFails(setDoc(doc(as("mallory"), "users/mallory/following/bob"), { since: serverTimestamp() })); // one side only
+  await assertFails(follow(as("carol"), "carol", "carol"));
+  await assertSucceeds(getDocs(collection(as("mallory"), "users/bob/followers")));
+  await assertSucceeds(unfollow(as("carol"), "carol", "bob"));
+});
+
+test("follow: never while blocked", async () => {
+  await seedCards();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users/bob/blocked/mallory"), { since: t0 }));
+  await assertFails(follow(as("mallory"), "mallory", "bob"));
+  await assertFails(getDoc(doc(as("mallory"), "profiles/bob")));
+  await assertSucceeds(follow(as("carol"), "carol", "bob"));
+});
+
+test("private accounts: request, owner approves; followers and posts hidden from others", async () => {
+  await seedCards({ bob: { private: true } });
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), "posts/bf"), { ...post("bob", "followers"), createdAt: t0 })
+  );
+  await assertFails(follow(as("carol"), "carol", "bob")); // not instantly
+  await assertFails(getDocs(collection(as("carol"), "users/bob/followers")));
+  await assertFails(getDoc(doc(as("carol"), "posts/bf")));
+  const req = { since: serverTimestamp(), name: "Carol", handle: "carol_run", avatar: "🏃" };
+  await assertSucceeds(setDoc(doc(as("carol"), "users/bob/followRequests/carol"), req));
+  await assertFails(setDoc(doc(as("carol"), "users/bob/followRequests/carol2"), req)); // only as yourself
+  const bob = as("bob");
+  const approve = writeBatch(bob);
+  approve.delete(doc(bob, "users/bob/followRequests/carol"));
+  approve.set(doc(bob, "users/bob/followers/carol"), { since: serverTimestamp() });
+  approve.set(doc(bob, "users/carol/following/bob"), { since: serverTimestamp() });
+  await assertSucceeds(approve.commit());
+  await assertSucceeds(getDoc(doc(as("carol"), "posts/bf")));
+  await assertFails(getDoc(doc(as("mallory"), "posts/bf")));
+});
+
+test("a private account cannot post publicly; blocked people cannot comment or invite", async () => {
+  await seedCards({ alice: { private: true } });
+  await assertFails(setDoc(doc(as("alice"), "posts/p1"), post("alice", "public")));
+  await assertSucceeds(setDoc(doc(as("alice"), "posts/p2"), post("alice", "followers")));
+  await seedPosts();
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users/bob/blocked/carol"), { since: t0 }));
+  await assertFails(getDoc(doc(as("carol"), "posts/pub")));
+  await assertFails(setDoc(doc(as("carol"), "posts/pub/comments/c1"), comment("carol")));
+  await assertFails(setDoc(doc(as("carol"), "connections/bob_carol"), conn("bob", "carol", "carol")));
+});
+
+test("block and mute lists are private", async () => {
+  await assertSucceeds(setDoc(doc(as("alice"), "users/alice/blocked/bob"), { since: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(as("alice"), "users/alice/muted/carol"), { since: serverTimestamp() }));
+  await assertFails(getDoc(doc(as("bob"), "users/alice/blocked/bob")));
+  await assertFails(getDocs(collection(as("bob"), "users/alice/muted")));
+  await assertFails(setDoc(doc(as("bob"), "users/alice/blocked/carol"), { since: serverTimestamp() }));
+});

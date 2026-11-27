@@ -206,7 +206,7 @@
           <label for="share-caption">Caption</label>
           <textarea id="share-caption" maxlength="280" rows="3" placeholder="How did it feel?"></textarea>
           <label for="share-visibility">Who can see it</label>
-          <select id="share-visibility"><option value="public">Everyone</option><option value="friends">Friends</option><option value="private">Only me</option></select>
+          <select id="share-visibility"><option value="public">Everyone</option><option value="followers">Followers</option><option value="friends">Friends</option><option value="private">Only me</option></select>
           <p class="hint">Shared: distance, time, heart-rate summary and chart, number of alerts. Never raw ECG, location or AI answers.</p>
           <p id="share-status" class="form-message" role="status"></p>
           <div class="actions">
@@ -236,6 +236,10 @@
             <div>
               <h2>Your feed</h2>
               <p class="muted">Runs shared by you, your friends and the community. Distance and heart rate come from the simulated shirt.</p>
+              <div class="feed-tabs" role="tablist">
+                <button type="button" role="tab" id="feed-following" aria-selected="true">Following</button>
+                <button type="button" role="tab" id="feed-community" aria-selected="false">Community</button>
+              </div>
             </div>
             <a href="#/history" class="btn btn-primary"><svg aria-hidden="true"><use href="#i-share" /></svg>Share a run</a>
           </div>
@@ -558,6 +562,11 @@
               <div id="search-results" class="people"></div>
             </div>
 
+            <div id="follow-requests-card" class="card invite-card" hidden>
+              <h2>Follow requests</h2>
+              <ul id="follow-requests" class="request-list"></ul>
+            </div>
+
             <div id="run-invites-card" class="card invite-card" hidden>
               <h2>Group-run invites</h2>
               <ul id="run-invite-list" class="request-list"></ul>
@@ -605,14 +614,17 @@
 
         <!-- Profile -->
         <section class="page" data-page="profile" hidden>
-          <div class="card profile-hero">
+          <div class="card pf-card" id="pf-header"></div>
+          <div class="tabs" role="tablist" data-tabs="profile"><button type="button" role="tab" data-tab="posts" aria-selected="true">Posts</button><button type="button" role="tab" data-tab="records" aria-selected="false">Records</button><button type="button" role="tab" data-tab="badges" aria-selected="false">Badges</button><button type="button" role="tab" data-tab="details" aria-selected="false">Details</button></div>
+          <div data-panels="profile">
+            <div data-panel="posts" id="pf-posts" class="feed"></div>
+            <div data-panel="records" id="pf-records" hidden></div>
+            <div data-panel="badges" id="pf-badges" hidden></div>
+            <div data-panel="details" class="panel-stack" hidden>
+          <div class="card profile-hero" hidden>
             <div class="avatar avatar-lg" id="pf-avatar" aria-hidden="true"></div>
-            <div>
-              <h2 id="pf-name"></h2>
-              <p class="muted"><span id="pf-role"></span> · <span id="pf-team"></span></p>
-            </div>
+            <div><h2 id="pf-name"></h2><p class="muted"><span id="pf-role"></span> · <span id="pf-team"></span></p></div>
           </div>
-
           <div class="kpis">
             <div class="kpi" id="pf-current-box" data-state="idle">
               <span class="kpi-label">Current status</span>
@@ -680,6 +692,19 @@
               </div>
             </form>
           </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Another runner -->
+        <section class="page" data-page="runner" hidden>
+          <div class="card pf-card" id="rn-header"></div>
+          <div class="tabs" role="tablist" data-tabs="runner"><button type="button" role="tab" data-tab="posts" aria-selected="true">Posts</button><button type="button" role="tab" data-tab="records" aria-selected="false">Records</button><button type="button" role="tab" data-tab="badges" aria-selected="false">Badges</button></div>
+          <div data-panels="runner">
+            <div data-panel="posts" id="rn-posts" class="feed"></div>
+            <div data-panel="records" id="rn-records" hidden></div>
+            <div data-panel="badges" id="rn-badges" hidden></div>
+          </div>
         </section>
 
         <!-- Settings -->
@@ -697,6 +722,10 @@
             <label for="privacy-find" class="field-label">Who can find me</label>
             <select id="privacy-find"><option value="everyone">Everyone signed in</option><option value="nobody">Nobody</option></select>
             <p id="privacy-hint" class="hint"></p>
+            <label for="privacy-account" class="field-label">Account</label>
+            <select id="privacy-account"><option value="public">Public: anyone can follow me</option><option value="private">Private: I approve followers</option></select>
+            <h3 class="list-title">Blocked and muted</h3>
+            <ul id="hidden-people" class="request-list"></ul>
           </div>
           <div class="card">
             <div class="card-head"><h2>Account</h2></div>

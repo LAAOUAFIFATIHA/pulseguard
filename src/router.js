@@ -7,6 +7,7 @@ const ROUTES = {
   team: ["Team", "Training partners who chose to share with each other"],
   friends: ["Friends", "Find runners, manage requests and invite friends to run"],
   rating: ["Rating", "Your rank, divisions and why your rating changed"],
+  runner: ["Runner", "Profile, runs, records and badges"],
   profile: ["Profile", "Your status, thresholds and personal details"],
   settings: ["Settings", "Data, privacy and account"],
 };
@@ -26,7 +27,7 @@ export function initRouter({ onEnter } = {}) {
   $("backdrop").onclick = () => setMenu(false);
 
   function go() {
-    const wanted = location.hash.replace(/^#\/?/, "");
+    const [wanted, param] = location.hash.replace(/^#\/?/, "").split("/");
     const route = ROUTES[wanted] ? wanted : "home";
     for (const page of pages) page.hidden = page.dataset.page !== route;
     for (const link of links) {
@@ -39,7 +40,7 @@ export function initRouter({ onEnter } = {}) {
     document.title = `${title} · PulseGuard`;
     setMenu(false);
     window.scrollTo(0, 0);
-    onEnter?.(route);
+    onEnter?.(route, param);
   }
 
   window.addEventListener("hashchange", go);

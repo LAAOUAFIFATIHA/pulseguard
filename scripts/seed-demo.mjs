@@ -23,6 +23,10 @@ const RUNNERS = [
   ["Lina Berrada", "lina", "☀️", "Rabat", "casual", "Weekend long runs with friends"],
   ["Adam Chraibi", "adam", "🦊", "Casablanca", "starting", "Back to running after a break"],
 ];
+// demo ratings (Rookie 500 to Grand Master), Karim has a private account
+const RATING = { yasmine: 1240, omar: 2320, salma: 880, karim: 1450, nora: 560, youssef: 3110, lina: 990, adam: 610 };
+const PRIVATE = new Set(["karim"]);
+const rankName = (r) => (r < 1000 ? "Rookie" : r < 2000 ? "Pacer" : r < 3000 ? "Racer" : r < 4000 ? "Master" : r < 5000 ? "Grand Master" : "Legend");
 const FRIENDS = [["yasmine", "omar"], ["yasmine", "lina"], ["omar", "karim"], ["salma", "nora"], ["youssef", "adam"]];
 const CAPTIONS = [
   "Easy pace, felt great today",
@@ -135,7 +139,11 @@ for (const [name, key, avatar, city, level, bio] of RUNNERS) {
     runnerLevel: level,
     discoverable: true,
     updatedAt: created,
+    rating: RATING[key],
+    rank: rankName(RATING[key]),
+    ...(PRIVATE.has(key) ? { private: true } : {}),
   });
+  await put(`users/${uid}/rating/current`, { rating: RATING[key], peak: RATING[key] + 40, runsRated: 12, rank: rankName(RATING[key]), lastEventId: "", lastRunAt: new Date(now - 86400000), decayWeeks: 0, updatedAt: created });
 
   const posts = 2 + Math.floor(rand() * 2);
   for (let i = 0; i < posts; i++) {
@@ -148,7 +156,7 @@ for (const [name, key, avatar, city, level, bio] of RUNNERS) {
       author: { name, handle, avatar },
       createdAt: new Date(now - Math.floor(rand() * 7 * 86400000)),
       caption: CAPTIONS[Math.floor(rand() * CAPTIONS.length)],
-      visibility: i === 1 ? "friends" : "public",
+      visibility: i === 1 ? "friends" : PRIVATE.has(key) ? "followers" : "public",
       stats: {
         distanceM: Math.round((speed / 3.6) * minutes * 60),
         seconds: minutes * 60,
@@ -205,6 +213,17 @@ await put(`profiles/${me}`, {
   updatedAt: joined,
 });
 for (const key of ["yasmine", "omar", "salma"]) await befriend(me, uids[key], joined);
+await put(`users/${me}/rating/current`, { rating: 720, peak: 760, runsRated: 5, rank: "Rookie", lastEventId: "", lastRunAt: new Date(now - 86400000), decayWeeks: 0, updatedAt: joined });
+const prof = await get(`profiles/${me}`);
+await put(`profiles/${me}`, { ...decode(prof), rating: 720, rank: "Rookie" });
+// follows: the test account follows Nora and Youssef; Lina and Adam follow it; demo runners follow each other
+async function follow(a, b) {
+  await put(`users/${a}/following/${b}`, { since: joined });
+  await put(`users/${b}/followers/${a}`, { since: joined });
+}
+for (const key of ["nora", "youssef"]) await follow(me, uids[key]);
+for (const key of ["lina", "adam"]) await follow(uids[key], me);
+for (const [a, b] of [["nora", "omar"], ["adam", "youssef"], ["lina", "yasmine"], ["salma", "youssef"]]) await follow(uids[a], uids[b]);
 
 // optional: befriend a test account by its handle
 const at = process.argv.indexOf("--friend");

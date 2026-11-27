@@ -13,6 +13,7 @@ import { initTeamAlerts } from "./team-alerts.js";
 import { initFriends } from "./friends.js";
 import { initHome } from "./home.js";
 import { initRating } from "./ratingui.js";
+import { initPeople } from "./people.js";
 import { buildRun, maxHeartRate } from "./runsummary.js";
 import { saveRun, rateFinishedRun } from "./db.js";
 import { downsample } from "./feed.js";
@@ -178,6 +179,7 @@ let lastAutoCoach = -Infinity;
 const history = createHistory({ sampleRate: 250, onShare: (s) => home.openShare(s) });
 const home = initHome();
 const ratingPage = initRating();
+const people = initPeople({ home });
 const status = createStatus();
 const profilePage = initProfile({ status, onChange: (p) => monitor.setRules(personalRules(p)) });
 const monitor = createMonitor({
@@ -350,7 +352,7 @@ $("init").onclick = async () => {
 // ── Pages ──────────────────────────────────────────────────────────────────
 let current = null;
 initRouter({
-  onEnter(route) {
+  onEnter(route, param) {
     if (current === "history" && route !== "history") history.leavePage();
     current = route;
     if (route === "history") history.enterPage();
@@ -362,6 +364,9 @@ initRouter({
     if (route === "friends") friends.enter();
     if (route === "home") home.enter();
     if (route === "rating") ratingPage.enter();
+    if (route === "runner" && param) people.enterRunner(param);
+    if (route === "profile") people.enterProfile();
+    if (route === "settings") people.renderSettings();
   },
 });
 
