@@ -22,7 +22,7 @@ PulseGuard is a heart-monitoring and coaching web app for athletes and teams, bu
 
 | Page | What it does |
 | --- | --- |
-| **Live monitor** | Starts by itself. Live ECG, heart rate, temperature, humidity, movement, alerts, latest coaching tip and the **automatic AI safety check** |
+| **Live monitor** | Press **Start**: live ECG, heart rate, temperature, humidity, movement, alerts, latest coaching tip and the **automatic AI safety check** |
 | **AI coach** | Coaching tip, doctor report, spoken tips, streaming answers with a request log, private symptom notes, on-device model setup |
 | **History** | Saved sessions with a replay player (heart-rate chart, alert zones, play/pause, 1× to 60×) |
 | **Team** | Create, discover or join teams, live status of every member, group run with GPS, team alerts |
@@ -33,13 +33,13 @@ Accounts use email/password (with email verification) or Google. Sign out is alw
 
 ### Automatic safety check
 
-When heart-rate data arrives, the app checks the person without any click:
+After you press **Start** and heart-rate data arrives, the app checks the person without any further click:
 
 1. The **rules** give a verdict immediately: *No warning signs*, *Take care* or *Stop and check*.
 2. The **AI** is asked after 15 s of data, again when a new alert starts (at least 20 s apart), and every 3 minutes.
 3. The AI may **raise** the verdict, never lower it. If it is unreachable, the rules still work.
 
-Both automatic start and automatic check can be switched off on the Live monitor page.
+The automatic check can be switched off, and monitoring can be set to start by itself (off by default), on the Live monitor page.
 
 ### Team alerts and group run
 

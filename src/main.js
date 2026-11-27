@@ -237,7 +237,7 @@ function renderCheck() {
   if (!live) {
     card.dataset.state = "idle";
     $("check-verdict").textContent = "Waiting for data";
-    $("check-message").textContent = "The check starts by itself when heart-rate data arrives.";
+    $("check-message").textContent = "Press Start: the check then runs by itself.";
     $("check-badge").className = "badge";
     $("check-badge").textContent = "";
     if (!checking) $("check-time").textContent = "";
