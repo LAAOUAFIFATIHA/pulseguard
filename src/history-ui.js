@@ -1,35 +1,32 @@
-// Cloud history (10 s summaries + anomaly events), a raw recording that stays
-// in this browser for training, and the settings actions.
-import {
-  saveWindow,
-  saveEvent,
-  newEventId,
-  recentEvents,
-  exportAll,
-  signOutAndClear,
-  deleteAccount,
-  usesPassword,
-  auth,
-} from "./db.js";
+// Recording (10 s summaries + anomaly events to the cloud, raw signal kept in
+// this browser for training) and the History page.
+import { saveWindow, saveEvent, newEventId, loadWindows } from "./db.js";
 import { ChunkRecorder, decodeSamples, CHUNK_SECONDS } from "./recorder.js";
 import { summarize } from "./summary.js";
+import { groupSessions, formatDuration, sparkline } from "./sessions.js";
+import { createReplay } from "./replay.js";
+import { SCENARIOS } from "./ecg.js";
 
 const $ = (id) => document.getElementById(id);
 const MAX_RAW_CHUNKS = 180; // 30 minutes kept in memory
+const LABELS = Object.fromEntries(Object.entries(SCENARIOS).map(([k, s]) => [k, s.label]));
 
-function download(name, data) {
+export function download(name, data) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
   Object.assign(document.createElement("a"), { href: url, download: name }).click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+const newSessionId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export function createHistory({ sampleRate }) {
   const raw = [];
   let tracked = new Map(); // rhythm event object -> { id, ended }
   let saved = 0;
   let lastWrite = 0;
+  let sessionId = newSessionId();
   const saving = () => $("save-history").checked;
-  const status = (msg) => ($("history-status").textContent = msg);
+  const status = (msg) => ($("save-status").textContent = msg);
   const fail = (err) => {
     console.error(err);
     status(err.code === "permission-denied" ? "Not saved: the database refused the data." : "Not saved: " + err.message);
@@ -42,12 +39,12 @@ export function createHistory({ sampleRate }) {
     const now = Date.now();
     if (!saving() || chunk.sampleCount < CHUNK_SECONDS * sampleRate || now - lastWrite < 9000) return;
     lastWrite = now;
-    saveWindow(summarize(chunk), now - CHUNK_SECONDS * 1000, fail);
-    status(`Saved ${++saved} summary block(s).`);
+    saveWindow({ ...summarize(chunk), sessionId }, now - CHUNK_SECONDS * 1000, fail);
+    status(`Saved ${++saved} summary block(s) this visit.`);
   };
   let recorder = new ChunkRecorder({ sampleRate, onChunk });
 
-  /** `events` are the monitor's events; `t` is the session time in seconds. */
+  /** `list` are the monitor's events; `t` is the session time in seconds. */
   function events(list, t) {
     if (!saving()) return;
     for (const e of list) {
@@ -57,71 +54,74 @@ export function createHistory({ sampleRate }) {
       entry ??= { id: newEventId(), startAt: Date.now() - (t - e.start) * 1000 };
       entry.ended = ended;
       tracked.set(e, entry);
-      saveEvent(
-        entry.id,
-        { ...e, startAt: entry.startAt, endAt: ended ? Date.now() - (t - e.end) * 1000 : null },
-        fail
-      );
+      saveEvent(entry.id, { ...e, startAt: entry.startAt, endAt: ended ? Date.now() - (t - e.end) * 1000 : null }, fail);
     }
   }
 
-  async function refresh() {
-    try {
-      const list = $("sessions");
-      const found = await recentEvents();
-      list.replaceChildren();
-      const add = (text) => list.append(Object.assign(document.createElement("li"), { textContent: text }));
-      if (!found.length) add("No saved anomaly events yet.");
-      for (const e of found) {
-        const peak = e.peakHr ? ` · ${e.peakHr} bpm` : "";
-        add(`${e.startAt.toDate().toLocaleString()} · ${e.type}${peak}`);
-      }
-    } catch (err) {
-      fail(err);
-    }
-  }
-  $("refresh-history").onclick = refresh;
   $("save-history").onchange = () => status(saving() ? "Saving is on." : "Saving is off.");
-  status("Saving is on: one summary every 10 seconds.");
+  status("Saving is on: one summary every 10 seconds while the monitor runs.");
 
   $("download-raw").onclick = () => {
     recorder.flush();
-    if (!raw.length) return status("Start the ECG first: nothing recorded yet.");
+    if (!raw.length) return status("Start the live monitor first: nothing recorded yet.");
     download(`pulseguard-raw-${Date.now()}.json`, {
       sessionId: `local-${Date.now()}`,
       chunks: raw.map((c) => ({ ...c, samples: decodeSamples(c.samples), accel: decodeSamples(c.accel) })),
     });
   };
 
-  // ── Settings ────────────────────────────────────────────────────────────
-  const note = (msg) => ($("settings-status").textContent = msg);
-  $("account-email").textContent = auth.currentUser.email;
-  $("delete-password-row").hidden = !usesPassword();
-  $("header-email").textContent = auth.currentUser.email;
-  $("sign-out").onclick = $("header-signout").onclick = () => signOutAndClear().catch((err) => note(err.message));
-  $("export-data").onclick = async () => {
+  // ── History page ─────────────────────────────────────────────────────────
+  const replay = createReplay();
+  const note = (msg) => ($("history-status").textContent = msg);
+
+  function sessionRow(s) {
+    const row = document.createElement("article");
+    row.className = "session";
+    const date = new Date(s.startMs);
+    const alerts = s.alertWindows
+      ? `<span class="pill bad">${s.alertWindows} alert block${s.alertWindows > 1 ? "s" : ""}</span>`
+      : `<span class="pill ok">No alerts</span>`;
+    row.innerHTML = `
+      <div class="session-date">
+        <strong>${date.toLocaleDateString(undefined, { day: "numeric", month: "short" })}</strong>
+        <span>${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+      </div>
+      <div class="session-main">
+        <div class="session-stats">
+          <span><b>${formatDuration(s.seconds)}</b> duration</span>
+          <span><b>${s.avgHr == null ? "--" : Math.round(s.avgHr)}</b> avg bpm</span>
+          <span><b>${s.maxHr == null ? "--" : Math.round(s.maxHr)}</b> max bpm</span>
+        </div>
+        <div class="session-tags"></div>
+      </div>
+      ${sparkline(s.windows.map((w) => w.avgHr))}
+      <div class="session-side">${alerts}<button type="button" class="btn btn-primary btn-sm">Replay</button></div>`;
+    const tags = row.querySelector(".session-tags");
+    for (const label of s.labels) {
+      tags.append(Object.assign(document.createElement("span"), { className: "chip static", textContent: LABELS[label] ?? label }));
+    }
+    row.querySelector("button").onclick = () => replay.open(s);
+    return row;
+  }
+
+  async function refresh() {
+    note("Loading…");
     try {
-      note("Preparing your data…");
-      download("pulseguard-my-data.json", await exportAll());
-      note("Downloaded.");
+      const windows = (await loadWindows()).map((w) => ({ ...w, startMs: w.startAt.toMillis() }));
+      const sessions = groupSessions(windows);
+      const list = $("session-list");
+      list.replaceChildren(...sessions.map(sessionRow));
+      note(
+        sessions.length
+          ? `${sessions.length} session${sessions.length > 1 ? "s" : ""}, newest first.`
+          : "No saved sessions yet. Start the live monitor: a summary is saved every 10 seconds."
+      );
     } catch (err) {
       console.error(err);
-      note("Export failed. Check your connection.");
+      note("Could not load your history. Check your connection.");
     }
-  };
-  $("delete-account").onclick = async () => {
-    if (!navigator.onLine) return note("Connect to the internet to delete your account.");
-    if (usesPassword() && !$("delete-password").value) return note("Type your password to confirm.");
-    if (!confirm("Delete all your data and your account? This cannot be undone.")) return;
-    try {
-      note("Deleting…");
-      $("save-history").checked = false; // no new writes while deleting
-      await deleteAccount($("delete-password").value);
-    } catch (err) {
-      console.error(err);
-      note(/credential|password/.test(err.code) ? "Wrong password." : "Deletion failed. Please try again.");
-    }
-  };
+  }
+  $("refresh-history").onclick = refresh;
 
   window.addEventListener("pagehide", () => recorder.flush());
 
@@ -136,6 +136,9 @@ export function createHistory({ sampleRate }) {
       recorder.flush();
       recorder = new ChunkRecorder({ sampleRate, onChunk });
       tracked = new Map();
+      sessionId = newSessionId();
     },
+    enterPage: refresh,
+    leavePage: () => replay.stop(),
   };
 }
