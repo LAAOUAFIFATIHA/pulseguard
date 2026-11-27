@@ -60,7 +60,7 @@ function chart(events) {
   </svg>`;
 }
 
-function confetti() {
+export function confetti() {
   const canvas = $("confetti");
   const ctx = canvas.getContext("2d");
   canvas.width = innerWidth;

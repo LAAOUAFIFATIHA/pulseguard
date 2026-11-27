@@ -748,3 +748,18 @@ test("challenge results: own result only, from a real run inside the window; rat
   await assertSucceeds(ev(17));
   await assertFails(ev(17));
 });
+
+// ── Part E: badges and records ─────────────────────────────────────────────
+test("badges and records: owner writes known badges; private accounts hide them", async () => {
+  await seedCards({ bob: { private: true } });
+  await assertSucceeds(setDoc(doc(as("alice"), "users/alice/badges/first_run"), { unlockedAt: serverTimestamp(), rarity: "common" }));
+  await assertFails(setDoc(doc(as("alice"), "users/alice/badges/made_up"), { unlockedAt: serverTimestamp(), rarity: "common" }));
+  await assertFails(setDoc(doc(as("mallory"), "users/alice/badges/runs10"), { unlockedAt: serverTimestamp(), rarity: "common" }));
+  await assertSucceeds(setDoc(doc(as("alice"), "users/alice/public/records"), { longestM: 12000, bestEndurance: 71, updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(as("alice"), "users/alice/public/other"), { updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(as("alice"), "users/alice/public/records"), { longestM: 12000, heartRate: [1], updatedAt: serverTimestamp() }));
+  await assertSucceeds(getDocs(collection(as("carol"), "users/alice/badges")));
+  await assertSucceeds(getDoc(doc(as("carol"), "users/alice/public/records")));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users/bob/badges/first_run"), { unlockedAt: t0, rarity: "common" }));
+  await assertFails(getDocs(collection(as("carol"), "users/bob/badges"))); // private, not a follower
+});

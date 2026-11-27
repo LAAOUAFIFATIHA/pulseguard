@@ -15,6 +15,7 @@ import { initHome } from "./home.js";
 import { initRating } from "./ratingui.js";
 import { initPeople, profileTabs } from "./people.js";
 import { initCompete } from "./compete.js";
+import { initBadges } from "./badgesui.js";
 import { buildRun, maxHeartRate } from "./runsummary.js";
 import { saveRun, rateFinishedRun } from "./db.js";
 import { downsample } from "./feed.js";
@@ -183,6 +184,7 @@ const ratingPage = initRating();
 const people = initPeople({ home });
 const compete = initCompete();
 profileTabs.challenge = compete.challenge;
+initBadges(profileTabs);
 const status = createStatus();
 const profilePage = initProfile({ status, onChange: (p) => monitor.setRules(personalRules(p)) });
 const monitor = createMonitor({

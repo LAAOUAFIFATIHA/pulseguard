@@ -838,7 +838,7 @@ export async function deleteAccount(password) {
     const team = await getTeam(code).catch(() => null);
     if (team?.ownerUid === user.uid) await deleteDoc(teamRef(code)).catch(() => {});
   }
-  for (const name of ["windows", "events", "runs", "ratingEvents", "rating", "badges", "runPlans", "blocked", "muted", "followRequests"]) {
+  for (const name of ["windows", "events", "runs", "ratingEvents", "rating", "badges", "runPlans", "blocked", "muted", "followRequests", "public"]) {
     const { docs } = await getDocs(sub(name)).catch(() => ({ docs: [] }));
     for (let i = 0; i < docs.length; i += 400) {
       const batch = writeBatch(db);
@@ -962,4 +962,28 @@ export async function setLeaderboardOptIn(on) {
   if (!card) return;
   const key = (card.city ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   await saveCard({ ...card, leaderboard: on, cityKey: on ? key : null });
+}
+
+// ── Badges and records (Part E) ───────────────────────────────────────────
+export async function badgesOf(owner) {
+  const snap = await getDocs(collection(db, "users", owner, "badges"));
+  return Object.fromEntries(snap.docs.map((d) => [d.id, d.data().unlockedAt?.toMillis?.() ?? Date.now()]));
+}
+export async function unlockBadges(list) {
+  const batch = writeBatch(db);
+  for (const b of list) batch.set(doc(db, "users", uid(), "badges", b.id), { unlockedAt: serverTimestamp(), rarity: b.rarity });
+  await batch.commit();
+}
+export async function recordsOf(owner) {
+  const x = await getDoc(doc(db, "users", owner, "public", "records"));
+  return x.exists() ? x.data() : null;
+}
+export const saveRecords = (r) =>
+  setDoc(doc(db, "users", uid(), "public", "records"), Object.fromEntries([...Object.entries(r).filter(([, v]) => v != null), ["updatedAt", serverTimestamp()]]));
+export async function setPinned(ids) {
+  if (!card) return;
+  await saveCard({ ...card, pinned: ids.slice(0, 3) });
+}
+export async function friendCount() {
+  return getCountFromServer(sub("friends")).then((x) => x.data().count).catch(() => 0);
 }

@@ -7,6 +7,7 @@ import {
 } from "./db.js";
 import { rankBadge } from "./ratingui.js";
 import { RUNNER_LEVELS } from "./social.js";
+import { BADGES } from "./achievements.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, className, text) => {
@@ -49,6 +50,12 @@ export function initPeople({ home }) {
     }
     if (card?.private) title.append(el("span", "tag", "Private"));
     info.append(title, el("p", "muted", `@${card?.handle ?? ""}`));
+    const pins = (card?.pinned ?? []).map((id) => BADGES.find((b) => b.id === id)).filter(Boolean);
+    if (pins.length) {
+      const row = el("div", "pf-pins");
+      for (const b of pins) row.append(el("span", "pf-pin", `${b.icon} ${b.name}`));
+      info.append(row);
+    }
 
     const limited = card?.private && !self && !relation?.following;
     if (!limited) {

@@ -384,6 +384,28 @@ service cloud.firestore {
       }
 
       // why the rating changed; once per run, challenge or week of inactivity
+      // badges and records: visible to whoever may see this runner's network
+      match /badges/{bid} {
+        allow read: if canSeeNetwork(uid);
+        allow create: if isOwner(uid)
+          && bid in ['first_run', 'streak7', 'streak30', 'runs10', 'runs50', 'km100', 'early_bird', 'night_owl', 'heat_warrior', 'zone_master', 'iron_heart', 'challenger', 'social_runner', 'coach_student']
+          && request.resource.data.keys().hasOnly(['unlockedAt', 'rarity'])
+          && request.resource.data.unlockedAt == request.time
+          && request.resource.data.rarity in ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+        allow delete: if isOwner(uid);
+      }
+      match /public/{docId} {
+        allow read: if canSeeNetwork(uid);
+        allow create, update: if isOwner(uid) && docId == 'records'
+          && request.resource.data.keys().hasOnly(['longestM', 'fastest1k', 'fastest5k', 'fastest10k', 'bestEndurance',
+                                                   'longestStreak', 'mostRunsWeek', 'hottestC', 'ratingPeak', 'updatedAt'])
+          && optNum(request.resource.data, 'longestM', 0, 300000)
+          && optNum(request.resource.data, 'bestEndurance', 0, 100)
+          && optNum(request.resource.data, 'hottestC', -30, 60)
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(uid);
+      }
+
       match /ratingEvents/{eid} {
         allow read, delete: if isOwner(uid);
         allow create: if isOwner(uid)
