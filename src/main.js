@@ -358,6 +358,8 @@ const remember = (id, key) => {
 };
 remember("auto-start", "pulseguard.autoStart");
 remember("auto-check", "pulseguard.autoCheck");
+remember("auto-coach", "pulseguard.autoCoach");
+remember("speak", "pulseguard.speak");
 if ($("auto-start").checked) monitor.start();
 
 updateNetStatus();
