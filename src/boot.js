@@ -29,7 +29,9 @@ function setMode(next) {
   const signup = mode === "signup";
   $("auth-title").textContent = signup ? "Create your account" : "Sign in";
   $("auth-submit").textContent = signup ? "Create account" : "Sign in";
-  $("auth-switch").textContent = signup ? "I already have an account" : "Create an account";
+  $("auth-subtitle").textContent = signup ? "Start monitoring in a minute." : "Welcome back. Sign in to continue.";
+  $("auth-switch-text").textContent = signup ? "Already have an account?" : "New to PulseGuard?";
+  $("auth-switch").textContent = signup ? "Sign in" : "Create an account";
   $("signup-extra").hidden = !signup;
   $("auth-consent").required = signup;
   $("auth-password").autocomplete = signup ? "new-password" : "current-password";

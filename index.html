@@ -4,241 +4,451 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1220" />
     <title>PulseGuard</title>
   </head>
   <body>
-    <!-- Sign-in gate (see src/boot.js) -->
-    <main id="boot-screen" class="gate">
-      <h1>PulseGuard</h1>
-      <p id="boot-message" role="status">Loading…</p>
-    </main>
+    <!-- Shared icons -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.5-9.3C1 8 3.2 4.5 6.8 4.5c2 0 3.4 1.1 4.2 2.4.8-1.3 2.2-2.4 4.2-2.4 3.6 0 5.8 3.5 4.3 7.2C19.5 16.4 12 21 12 21z" fill="currentColor"/><path d="M5 12h3l1.5-3 3 6 1.5-3h5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="i-live" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+        <symbol id="i-coach" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 11h.01M12 11h.01M15 11h.01"/></symbol>
+        <symbol id="i-history" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+        <symbol id="i-team" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></symbol>
+        <symbol id="i-profile" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+        <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+        <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></symbol>
+        <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></symbol>
+      </defs>
+    </svg>
 
-    <main id="auth-screen" class="gate" hidden>
-      <h1>PulseGuard</h1>
-      <p class="notice">PulseGuard is a demo and <strong>not a medical device</strong>. It cannot diagnose. In an emergency, call emergency services.</p>
-      <section class="card">
-        <h2 id="auth-title">Sign in</h2>
-        <form id="auth-form" class="form">
-          <label for="auth-email">Email</label>
-          <input id="auth-email" type="email" autocomplete="email" required />
-          <label for="auth-password">Password</label>
-          <div class="password">
-            <input id="auth-password" type="password" autocomplete="current-password" required />
-            <button type="button" id="toggle-password" aria-pressed="false" aria-controls="auth-password">Show</button>
-          </div>
-          <div id="signup-extra" hidden>
-            <p class="hint">At least 10 characters.</p>
-            <label class="check"><input type="checkbox" id="auth-consent" /> I agree that PulseGuard processes my health data (heart rate, body sensors, profile) to provide the app.</label>
-          </div>
-          <button id="auth-submit" class="primary" type="submit">Sign in</button>
-          <p id="auth-message" role="alert"></p>
-        </form>
-        <div class="actions">
-          <button type="button" id="google-signin">Continue with Google</button>
-          <button type="button" id="auth-switch">Create an account</button>
-          <button type="button" id="reset-password">Forgot password?</button>
-        </div>
+    <!-- ── Sign-in gate (see src/boot.js) ─────────────────────────────── -->
+    <div id="boot-screen" class="splash">
+      <svg class="logo pulse"><use href="#i-logo" /></svg>
+      <p id="boot-message" role="status">Loading PulseGuard…</p>
+    </div>
+
+    <div id="auth-screen" class="auth-layout" hidden>
+      <section class="auth-brand">
+        <div class="brand"><svg class="logo"><use href="#i-logo" /></svg><span>PulseGuard</span></div>
+        <h1>Heart monitoring for athletes, with private on-device AI.</h1>
+        <ul class="brand-points">
+          <li>Live ECG, heart rate and body sensors from your smart shirt</li>
+          <li>Coaching from Gemini Nano on your device, reports from Gemini in the cloud</li>
+          <li>Your data stays yours: export or delete it at any time</li>
+        </ul>
+        <p class="brand-note">Not a medical device. It cannot diagnose. In an emergency, call emergency services.</p>
       </section>
-    </main>
 
-    <main id="verify-screen" class="gate" hidden>
-      <h1>Verify your email</h1>
-      <section class="card">
-        <p>We sent a link to <strong id="verify-address"></strong>. Open it, then come back here.</p>
-        <div class="actions">
-          <button type="button" id="check-verified" class="primary">I verified my email</button>
-          <button type="button" id="resend-email">Send again</button>
-          <button type="button" id="verify-signout">Sign out</button>
+      <main class="auth-main">
+        <div class="auth-card">
+          <h2 id="auth-title">Sign in</h2>
+          <p class="muted" id="auth-subtitle">Welcome back. Sign in to continue.</p>
+          <button type="button" id="google-signin" class="btn btn-outline btn-block">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6h-4a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.9 3.6-4.9 6.7-4.9z"/></svg>
+            Continue with Google
+          </button>
+          <div class="divider"><span>or with email</span></div>
+          <form id="auth-form" class="form">
+            <label for="auth-email">Email</label>
+            <input id="auth-email" type="email" autocomplete="email" required />
+            <div class="label-row">
+              <label for="auth-password">Password</label>
+              <button type="button" id="reset-password" class="link">Forgot password?</button>
+            </div>
+            <div class="password">
+              <input id="auth-password" type="password" autocomplete="current-password" required />
+              <button type="button" id="toggle-password" class="btn btn-ghost" aria-pressed="false" aria-controls="auth-password">Show</button>
+            </div>
+            <div id="signup-extra" hidden>
+              <p class="hint">At least 10 characters.</p>
+              <label class="check"><input type="checkbox" id="auth-consent" /> <span>I agree that PulseGuard processes my health data (heart rate, body sensors, profile) to provide the app.</span></label>
+            </div>
+            <button id="auth-submit" class="btn btn-primary btn-block" type="submit">Sign in</button>
+            <p id="auth-message" class="form-message" role="alert"></p>
+          </form>
+          <p class="switch-line"><span id="auth-switch-text">New to PulseGuard?</span> <button type="button" id="auth-switch" class="link">Create an account</button></p>
         </div>
-        <p id="verify-message" role="status"></p>
-      </section>
-    </main>
+      </main>
+    </div>
 
-    <main id="onboard-screen" class="gate" hidden>
-      <h1>Your profile</h1>
-      <section class="card">
+    <div id="verify-screen" class="center-screen" hidden>
+      <div class="auth-card">
+        <div class="brand dark"><svg class="logo"><use href="#i-logo" /></svg><span>PulseGuard</span></div>
+        <h2>Verify your email</h2>
+        <p>We sent a link to <strong id="verify-address"></strong>. Open it, then come back here. Check your spam folder too.</p>
+        <div class="stack">
+          <button type="button" id="check-verified" class="btn btn-primary btn-block">I verified my email</button>
+          <button type="button" id="resend-email" class="btn btn-outline btn-block">Send the email again</button>
+          <button type="button" id="verify-signout" class="btn btn-ghost btn-block">Sign out</button>
+        </div>
+        <p id="verify-message" class="form-message" role="status"></p>
+      </div>
+    </div>
+
+    <div id="onboard-screen" class="center-screen" hidden>
+      <div class="auth-card">
+        <div class="brand dark"><svg class="logo"><use href="#i-logo" /></svg><span>PulseGuard</span></div>
+        <h2>Set up your profile</h2>
+        <p class="muted">Age and resting heart rate personalise your alert thresholds.</p>
         <form id="onboard-form" class="form">
           <label for="ob-name">Display name</label>
           <input id="ob-name" required maxlength="60" autocomplete="nickname" />
-          <label for="ob-age">Age</label>
-          <input id="ob-age" type="number" min="13" max="100" required />
-          <label for="ob-rest">Resting heart rate in bpm (optional)</label>
-          <input id="ob-rest" type="number" min="30" max="120" />
+          <div class="grid-2 tight">
+            <div class="form">
+              <label for="ob-age">Age</label>
+              <input id="ob-age" type="number" min="13" max="100" required />
+            </div>
+            <div class="form">
+              <label for="ob-rest">Resting HR (optional)</label>
+              <input id="ob-rest" type="number" min="30" max="120" placeholder="bpm" />
+            </div>
+          </div>
           <label for="ob-role">I am</label>
           <select id="ob-role" required><option value="athlete">An athlete</option><option value="coach">A coach</option></select>
-          <label class="check"><input type="checkbox" id="ob-consent" required /> I agree that PulseGuard processes my health data to provide the app.</label>
-          <p class="notice">Not a medical device.</p>
-          <button class="primary" type="submit">Save and continue</button>
-          <p id="onboard-message" role="alert"></p>
+          <label class="check"><input type="checkbox" id="ob-consent" required /> <span>I agree that PulseGuard processes my health data to provide the app. PulseGuard is not a medical device.</span></label>
+          <button class="btn btn-primary btn-block" type="submit">Save and continue</button>
+          <p id="onboard-message" class="form-message" role="alert"></p>
         </form>
-        <button type="button" id="onboard-signout">Sign out</button>
-      </section>
-    </main>
+        <button type="button" id="onboard-signout" class="btn btn-ghost btn-block">Sign out</button>
+      </div>
+    </div>
 
-    <main id="app" hidden>
-      <header>
-        <div class="account-bar">
-          <span id="header-email"></span>
-          <button type="button" id="header-signout">Sign out</button>
-        </div>
-        <h1>PulseGuard</h1>
-        <p class="tagline">ECG coaching with hybrid AI — Gemini Nano on device, Gemini in the cloud.</p>
-        <div class="status-row">
-          <span id="net-status" class="pill" aria-live="assertive"></span>
-          <span id="device-status" class="pill neutral" aria-live="polite"></span>
-        </div>
-      </header>
-
-      <!-- Live ECG monitor -->
-      <section class="card">
-        <div class="card-head">
-          <h2>Live ECG <span class="sim-tag">simulated T-shirt</span></h2>
-          <div class="controls">
-            <label for="scenario" class="sr-only">Scenario</label>
-            <select id="scenario"></select>
-            <button id="start" class="primary">Start</button>
-            <button id="restart">Restart</button>
+    <!-- ── App shell ─────────────────────────────────────────────────── -->
+    <div id="app" class="shell" hidden>
+      <aside class="sidebar" id="sidebar">
+        <div class="brand"><svg class="logo"><use href="#i-logo" /></svg><span>PulseGuard</span></div>
+        <nav class="nav" aria-label="Main">
+          <a href="#/live" data-route="live"><svg><use href="#i-live" /></svg>Live monitor</a>
+          <a href="#/coach" data-route="coach"><svg><use href="#i-coach" /></svg>AI coach</a>
+          <a href="#/history" data-route="history"><svg><use href="#i-history" /></svg>History</a>
+          <a href="#/team" data-route="team"><svg><use href="#i-team" /></svg>Team</a>
+          <a href="#/profile" data-route="profile"><svg><use href="#i-profile" /></svg>Profile</a>
+          <a href="#/settings" data-route="settings"><svg><use href="#i-settings" /></svg>Settings</a>
+        </nav>
+        <div class="user-card">
+          <div class="avatar" id="side-avatar" aria-hidden="true"></div>
+          <div class="user-text">
+            <strong id="side-name"></strong>
+            <span id="header-email"></span>
           </div>
         </div>
+        <button type="button" id="header-signout" class="btn btn-sidebar"><svg><use href="#i-logout" /></svg>Sign out</button>
+      </aside>
+      <div class="backdrop" id="backdrop" hidden></div>
 
-        <div class="monitor">
-          <div id="hr-box" data-state="ok">
-            <div class="hr-line">
-              <span id="hr-heart" aria-hidden="true">♥</span>
-              <span id="hr-value">--</span>
-              <span class="unit">bpm</span>
+      <div class="main">
+        <header class="topbar">
+          <button type="button" id="menu-toggle" class="icon-btn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><svg><use href="#i-menu" /></svg></button>
+          <div class="title-block">
+            <h1 id="page-title">Live monitor</h1>
+            <p id="page-subtitle" class="muted"></p>
+          </div>
+          <div class="top-status">
+            <span id="net-status" class="pill" aria-live="assertive"></span>
+            <span id="device-status" class="pill neutral" aria-live="polite"></span>
+            <button type="button" id="top-signout" class="icon-btn" aria-label="Sign out" title="Sign out"><svg><use href="#i-logout" /></svg></button>
+          </div>
+        </header>
+
+        <!-- Live monitor -->
+        <section class="page" data-page="live">
+          <div class="kpis">
+            <div class="kpi kpi-hr" id="hr-box" data-state="ok">
+              <span class="kpi-label">Heart rate</span>
+              <div class="hr-line">
+                <svg id="hr-heart" class="heart" aria-hidden="true"><use href="#i-logo" /></svg>
+                <span id="hr-value">--</span><span class="unit">bpm</span>
+              </div>
+              <span class="kpi-sub"><span id="activity">Rest</span> · <span id="rhythm">Rhythm: measuring…</span></span>
             </div>
-            <div class="hr-meta">
-              <span id="activity">Rest</span> · <span id="rhythm">Rhythm: measuring…</span>
+            <div class="kpi"><span class="kpi-label">Skin temperature</span><strong id="temp-value">--</strong></div>
+            <div class="kpi"><span class="kpi-label">Humidity</span><strong id="humidity-value">--</strong></div>
+            <div class="kpi"><span class="kpi-label">Movement</span><strong id="motion-value">--</strong></div>
+            <div class="kpi"><span class="kpi-label">Session</span><strong id="session-time">00:00</strong></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>ECG</h2>
+                <p class="muted">Simulated smart shirt · 250 Hz</p>
+              </div>
+              <div class="controls">
+                <label for="scenario" class="sr-only">Scenario</label>
+                <select id="scenario"></select>
+                <button id="start" class="btn btn-primary">Start</button>
+                <button id="restart" class="btn btn-outline">Restart</button>
+              </div>
             </div>
-            <div class="hr-meta">Session <span id="session-time">00:00</span></div>
+            <canvas id="ecg-canvas" class="ecg" aria-label="Live ECG trace"></canvas>
           </div>
-          <canvas id="ecg-canvas" aria-label="Live ECG trace"></canvas>
-        </div>
 
-        <div class="vitals">
-          <div><span>Skin temperature</span><strong id="temp-value">--</strong></div>
-          <div><span>Humidity</span><strong id="humidity-value">--</strong></div>
-          <div><span>Movement</span><strong id="motion-value">--</strong></div>
-        </div>
-
-        <h3>Alerts</h3>
-        <ul id="alerts" aria-live="polite"></ul>
-        <p class="disclaimer">Demo only. PulseGuard is not a medical device and uses simple threshold rules.</p>
-      </section>
-
-      <details class="card">
-        <summary><h2>My profile</h2></summary>
-        <form id="profile-form">
-          <div class="profile">
-            <label>Display name <input id="profile-displayName" required maxlength="60" /></label>
-            <label>Role <select id="profile-role"><option value="athlete">Athlete</option><option value="coach">Coach</option></select></label>
-            <label>Age <input id="profile-age" type="number" min="13" max="100" required /></label>
-            <label>Resting HR <input id="profile-restingHr" type="number" min="30" max="120" /></label>
-            <label>Sex <select id="profile-sex"><option value="">Not said</option><option value="female">Female</option><option value="male">Male</option></select></label>
-            <label>Running <select id="profile-runner"><option value="">Not said</option><option value="not a runner">Not a runner</option><option value="occasional runner">Occasional runner</option><option value="regular runner">Regular runner</option><option value="athlete">Athlete</option></select></label>
-            <label>Height (cm) <input id="profile-heightCm" type="number" min="100" max="230" /></label>
-            <label>Weight (kg) <input id="profile-weightKg" type="number" min="30" max="250" /></label>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head"><h2>Alerts</h2></div>
+              <ul id="alerts" class="alert-list" aria-live="polite"></ul>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h2>Latest coaching tip</h2>
+                <span id="live-tip-badge" class="badge"></span>
+              </div>
+              <p id="live-tip" class="tip muted">Ask the coach for advice based on your live reading.</p>
+              <div class="actions">
+                <button type="button" id="live-coach" class="btn btn-primary">Coach me now</button>
+                <a href="#/coach" class="btn btn-outline">Open AI coach</a>
+              </div>
+            </div>
           </div>
-          <button type="submit">Save profile</button>
-        </form>
-        <p id="profile-status" class="hint" role="status">Age and resting heart rate set your alert thresholds. All but your name is sent with AI prompts.</p>
-      </details>
+          <p class="disclaimer">PulseGuard is not a medical device. It uses simple threshold rules and cannot diagnose.</p>
+        </section>
 
-      <!-- AI on the ECG data -->
-      <section class="card">
-        <h2>AI coach</h2>
-        <div class="actions">
-          <button id="coach-now" class="primary">Coach me now (prefer on-device)</button>
-          <button id="doctor-report">Doctor report (prefer cloud)</button>
-        </div>
-        <label class="check">
-          <input type="checkbox" id="auto-coach" />
-          Ask the coach automatically when a new alert starts
-        </label>
-        <label class="check">
-          <input type="checkbox" id="speak" />
-          Read coaching tips aloud
-        </label>
-      </section>
-
-      <section class="card">
-        <div class="answer-head">
-          <h2>Answer</h2>
-          <span id="badge" aria-live="polite"></span>
-        </div>
-        <p id="error-msg" role="alert" hidden></p>
-        <pre id="answer" aria-live="polite"></pre>
-        <details class="log">
-          <summary>Request log (source and response time)</summary>
-          <table>
-            <thead><tr><th>Time</th><th>Task</th><th>Answered by</th><th>First text</th><th>Total</th></tr></thead>
-            <tbody id="request-log"></tbody>
-          </table>
-        </details>
-        <details id="prompt-details">
-          <summary>Prompt sent to the model</summary>
-          <pre id="last-prompt"></pre>
-        </details>
-      </section>
-
-      <!-- History (Firestore) -->
-      <section class="card">
-        <h2>History</h2>
-        <label class="check">
-          <input type="checkbox" id="save-history" checked />
-          Save 10-second summaries and alerts to my account
-        </label>
-        <p id="history-status" class="hint" aria-live="polite"></p>
-        <div class="actions">
-          <button id="refresh-history" type="button">Show recent alerts</button>
-          <button id="download-raw" type="button">Download raw signal (stays on this device)</button>
-        </div>
-        <ul id="sessions"></ul>
-      </section>
-
-      <details class="card">
-        <summary><h2>Settings and privacy</h2></summary>
-        <p class="hint">Signed in as <strong id="account-email"></strong>. PulseGuard is not a medical device.</p>
-        <div class="actions">
-          <button type="button" id="export-data">Export my data (JSON)</button>
-          <button type="button" id="sign-out">Sign out</button>
-        </div>
-        <h3>Delete my data and account</h3>
-        <div class="form">
-          <div id="delete-password-row">
-            <label for="delete-password">Confirm your password</label>
-            <input id="delete-password" type="password" autocomplete="current-password" />
+        <!-- AI coach -->
+        <section class="page" data-page="coach" hidden>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Ask the coach</h2>
+                <p class="muted">Uses your live reading and profile. Your name is never sent.</p>
+              </div>
+            </div>
+            <div class="actions">
+              <button id="coach-now" class="btn btn-primary">Coaching tip · prefer on-device</button>
+              <button id="doctor-report" class="btn btn-outline">Doctor report · prefer cloud</button>
+            </div>
+            <div class="toggles">
+              <label class="check"><input type="checkbox" id="auto-coach" /> <span>Ask automatically when a new alert starts</span></label>
+              <label class="check"><input type="checkbox" id="speak" /> <span>Read coaching tips aloud</span></label>
+            </div>
           </div>
-          <button type="button" id="delete-account" class="primary">Delete everything</button>
-        </div>
-        <p id="settings-status" class="hint" role="status"></p>
-      </details>
 
-      <!-- Part 1 tools -->
-      <details class="card" id="tools">
-        <summary><h2>On-device model and free prompts</h2></summary>
+          <div class="card">
+            <div class="card-head">
+              <h2>Answer</h2>
+              <span id="badge" class="badge" aria-live="polite"></span>
+            </div>
+            <p id="error-msg" class="error" role="alert" hidden></p>
+            <pre id="answer" class="answer" aria-live="polite"></pre>
+            <details class="log">
+              <summary>Request log · source and response time</summary>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Time</th><th>Task</th><th>Answered by</th><th>First text</th><th>Total</th></tr></thead>
+                  <tbody id="request-log"></tbody>
+                </table>
+              </div>
+            </details>
+            <details class="log">
+              <summary>Prompt sent to the model</summary>
+              <pre id="last-prompt" class="prompt"></pre>
+            </details>
+          </div>
 
-        <h3>On-device model</h3>
-        <p class="hint">Click once after the page loads (Chrome needs a click before it can download Gemini Nano).</p>
-        <button id="init">Prepare on-device model</button>
-        <p id="progress" aria-live="polite"></p>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head"><h2>On-device model</h2></div>
+              <p class="muted">Gemini Nano runs inside Chrome on capable laptops. Click once to prepare it.</p>
+              <button id="init" class="btn btn-outline">Prepare on-device model</button>
+              <p id="progress" class="hint" aria-live="polite"></p>
+            </div>
+            <div class="card">
+              <div class="card-head"><h2>Prompt lab</h2></div>
+              <div id="examples" class="chips">
+                <button id="ex-coach" class="chip" type="button">Coaching tip</button>
+                <button id="ex-report" class="chip" type="button">ECG report</button>
+                <button id="ex-symptom" class="chip" type="button">Symptom note</button>
+              </div>
+              <label for="prompt" class="sr-only">Prompt</label>
+              <textarea id="prompt" rows="4" placeholder="Ask anything, paste an ECG summary, or describe a symptom…"></textarea>
+              <div class="actions">
+                <button id="ask" class="btn btn-outline">Ask</button>
+                <button id="report" class="btn btn-outline">Report</button>
+                <button id="symptom" class="btn btn-outline">Tag symptoms (private)</button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <h3>Ask anything</h3>
-        <div id="examples">
-          <span>Examples:</span>
-          <button id="ex-coach" class="chip" type="button">Coaching tip</button>
-          <button id="ex-report" class="chip" type="button">ECG report</button>
-          <button id="ex-symptom" class="chip" type="button">Symptom note</button>
-        </div>
-        <textarea id="prompt" rows="4" placeholder="Ask for coaching, paste an ECG summary, or describe a symptom…"></textarea>
-        <div class="actions">
-          <button id="ask">Ask (coach · prefer on-device)</button>
-          <button id="report">Report (prefer cloud)</button>
-          <button id="symptom">Tag symptoms (private)</button>
-        </div>
-      </details>
-    </main>
+        <!-- History -->
+        <section class="page" data-page="history" hidden>
+          <div class="card" id="replay-card" hidden>
+            <div class="card-head">
+              <div>
+                <h2 id="replay-title">Session replay</h2>
+                <p class="muted" id="replay-meta"></p>
+              </div>
+              <button type="button" id="replay-close" class="btn btn-ghost">Close</button>
+            </div>
+            <div class="replay">
+              <div class="replay-screen">
+                <div class="replay-hud">
+                  <div><span class="kpi-label">Heart rate</span><strong id="rp-hr">--</strong></div>
+                  <div><span class="kpi-label">Activity</span><strong id="rp-activity">--</strong></div>
+                  <div><span class="kpi-label">Temperature</span><strong id="rp-temp">--</strong></div>
+                  <div><span class="kpi-label">Status</span><strong id="rp-status">--</strong></div>
+                </div>
+                <canvas id="rp-ecg" class="ecg ecg-dark" aria-label="ECG illustration"></canvas>
+                <p class="replay-note">Trace rebuilt from the saved heart rate. Raw ECG is never uploaded.</p>
+              </div>
+              <canvas id="rp-chart" class="trend" aria-label="Heart rate over the session"></canvas>
+              <div class="player">
+                <button type="button" id="rp-play" class="icon-btn play" aria-label="Play"><svg><use href="#i-play" /></svg></button>
+                <span id="rp-time" class="mono">00:00 / 00:00</span>
+                <input type="range" id="rp-seek" min="0" max="0" step="1" value="0" aria-label="Position" />
+                <label for="rp-speed" class="sr-only">Speed</label>
+                <select id="rp-speed"><option value="1">1×</option><option value="5">5×</option><option value="20" selected>20×</option><option value="60">60×</option></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Sessions</h2>
+                <p class="muted">Every 10 seconds of monitoring is summarised and saved to your account.</p>
+              </div>
+              <button id="refresh-history" type="button" class="btn btn-outline">Refresh</button>
+            </div>
+            <p id="history-status" class="hint" aria-live="polite"></p>
+            <div id="session-list" class="session-list"></div>
+          </div>
+        </section>
+
+        <!-- Team -->
+        <section class="page" data-page="team" hidden>
+          <div id="team-empty" class="grid-2" hidden>
+            <div class="card">
+              <div class="card-head"><h2>Create a team</h2></div>
+              <p class="muted">For a coach or a group of training partners. You get an invite code to share.</p>
+              <form id="team-create" class="form">
+                <label for="team-name">Team name</label>
+                <input id="team-name" maxlength="40" required placeholder="e.g. INPT Running Club" />
+                <button class="btn btn-primary" type="submit">Create team</button>
+              </form>
+            </div>
+            <div class="card">
+              <div class="card-head"><h2>Join a team</h2></div>
+              <p class="muted">Enter the 8-character code from your coach or teammate.</p>
+              <form id="team-join" class="form">
+                <label for="team-code">Invite code</label>
+                <input id="team-code" maxlength="8" required autocomplete="off" class="mono upper" placeholder="ABCD2345" />
+                <button class="btn btn-primary" type="submit">Join team</button>
+              </form>
+            </div>
+            <div class="card span-2 privacy-box">
+              <h3>What your team sees</h3>
+              <p class="muted">Your display name and role, live status (normal or alert), current and last normal heart rate, a short heart-rate trend and your last session summary. Never your email, profile details, raw ECG or AI answers. Leave the team at any time to stop sharing.</p>
+            </div>
+          </div>
+
+          <div id="team-view" hidden>
+            <div class="card team-head">
+              <div>
+                <h2 id="team-title"></h2>
+                <p class="muted"><span id="team-count"></span> · Invite code <code id="team-code-show" class="mono"></code> <button type="button" id="team-copy" class="link">Copy</button></p>
+              </div>
+              <div class="actions">
+                <label class="check"><input type="checkbox" id="team-share" checked /> <span>Share my live status</span></label>
+                <button type="button" id="team-leave" class="btn btn-outline">Leave team</button>
+              </div>
+            </div>
+            <div id="team-members" class="member-grid"></div>
+          </div>
+          <p id="team-status" class="hint" role="status"></p>
+        </section>
+
+        <!-- Profile -->
+        <section class="page" data-page="profile" hidden>
+          <div class="card profile-hero">
+            <div class="avatar avatar-lg" id="pf-avatar" aria-hidden="true"></div>
+            <div>
+              <h2 id="pf-name"></h2>
+              <p class="muted"><span id="pf-role"></span> · <span id="pf-team"></span></p>
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi" id="pf-current-box" data-state="idle">
+              <span class="kpi-label">Current status</span>
+              <strong id="pf-current">Not monitoring</strong>
+              <span class="kpi-sub" id="pf-current-sub">Start the live monitor to see it here.</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Last normal heart rate</span>
+              <strong id="pf-normal">--</strong>
+              <span class="kpi-sub" id="pf-normal-sub">No normal reading saved yet.</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Exercise zone</span>
+              <strong id="pf-zone">--</strong>
+              <span class="kpi-sub">Based on age and resting HR</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Alert thresholds</span>
+              <strong id="pf-limits">--</strong>
+              <span class="kpi-sub">Slow · fast at rest</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>Personal details</h2></div>
+            <form id="profile-form">
+              <div class="profile">
+                <label>Display name <input id="profile-displayName" required maxlength="60" /></label>
+                <label>Role <select id="profile-role"><option value="athlete">Athlete</option><option value="coach">Coach</option></select></label>
+                <label>Age <input id="profile-age" type="number" min="13" max="100" required /></label>
+                <label>Resting HR (bpm) <input id="profile-restingHr" type="number" min="30" max="120" /></label>
+                <label>Sex <select id="profile-sex"><option value="">Not said</option><option value="female">Female</option><option value="male">Male</option></select></label>
+                <label>Running <select id="profile-runner"><option value="">Not said</option><option value="not a runner">Not a runner</option><option value="occasional runner">Occasional runner</option><option value="regular runner">Regular runner</option><option value="athlete">Athlete</option></select></label>
+                <label>Height (cm) <input id="profile-heightCm" type="number" min="100" max="230" /></label>
+                <label>Weight (kg) <input id="profile-weightKg" type="number" min="30" max="250" /></label>
+              </div>
+              <div class="actions">
+                <button type="submit" class="btn btn-primary">Save profile</button>
+                <span id="profile-status" class="hint" role="status">All details except your name are sent with AI prompts.</span>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Settings -->
+        <section class="page" data-page="settings" hidden>
+          <div class="card">
+            <div class="card-head"><h2>Data collection</h2></div>
+            <label class="check"><input type="checkbox" id="save-history" checked /> <span>Save 10-second summaries and alerts to my account</span></label>
+            <p id="save-status" class="hint" aria-live="polite"></p>
+            <div class="actions">
+              <button id="download-raw" type="button" class="btn btn-outline">Download raw signal (stays on this device)</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Account</h2></div>
+            <p>Signed in as <strong id="account-email"></strong></p>
+            <div class="actions">
+              <button type="button" id="export-data" class="btn btn-outline">Export my data (JSON)</button>
+              <button type="button" id="sign-out" class="btn btn-outline">Sign out</button>
+            </div>
+          </div>
+          <div class="card danger-zone">
+            <div class="card-head"><h2>Delete my data and account</h2></div>
+            <p class="muted">Removes your profile, summaries, alerts and team card, then your account. This cannot be undone.</p>
+            <div class="form narrow">
+              <div id="delete-password-row" class="form">
+                <label for="delete-password">Confirm your password</label>
+                <input id="delete-password" type="password" autocomplete="current-password" />
+              </div>
+              <button type="button" id="delete-account" class="btn btn-danger">Delete everything</button>
+            </div>
+            <p id="settings-status" class="hint" role="status"></p>
+          </div>
+          <p class="disclaimer">PulseGuard is a demo and not a medical device.</p>
+        </section>
+      </div>
+    </div>
     <script type="module" src="/src/boot.js"></script>
   </body>
 </html>

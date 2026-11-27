@@ -4,10 +4,14 @@ import { appCheckReady } from "./firebase.js";
 import { createHistory } from "./history-ui.js";
 import { personalRules } from "./rules.js";
 import { initProfile, readProfile } from "./profile.js";
+import { initRouter } from "./router.js";
+import { createStatus } from "./status.js";
+import { initTeam } from "./team.js";
+import { initSettings } from "./settings.js";
 import { buildCoachPrompt, buildReportPrompt } from "./prompts.js";
 
 const $ = (id) => document.getElementById(id);
-const AI_BUTTONS = ["ask", "report", "symptom", "coach-now", "doctor-report"];
+const AI_BUTTONS = ["ask", "report", "symptom", "coach-now", "doctor-report", "live-coach"];
 
 // ── Example prompts (free-prompt panel) ─────────────────────────────────────
 const EXAMPLES = {
@@ -27,6 +31,7 @@ const EXAMPLES = {
 function updateNetStatus() {
   const online = navigator.onLine;
   $("net-status").textContent = online ? "Online" : "Offline";
+  $("net-status").title = online ? "Connected" : "No connection: on-device answers only";
   $("net-status").className = "pill " + (online ? "ok" : "bad");
 }
 window.addEventListener("online", updateNetStatus);
@@ -43,6 +48,7 @@ const DEVICE_LABELS = {
 async function showDeviceStatus() {
   const status = await checkDeviceModel();
   $("device-status").textContent = DEVICE_LABELS[status] ?? `Gemini Nano: ${status}`;
+  $("device-status").title = $("device-status").textContent;
   $("device-status").className = "pill " + (status === "available" ? "ok" : "neutral");
   return status;
 }
@@ -51,7 +57,7 @@ async function showDeviceStatus() {
 function resetAnswer() {
   $("error-msg").textContent = "";
   $("error-msg").hidden = true;
-  $("badge").className = "";
+  $("badge").className = "badge";
   $("badge").textContent = "";
   $("answer").textContent = "";
 }
@@ -61,10 +67,10 @@ function showError(msg) {
   $("error-msg").hidden = false;
 }
 
-function showBadge(source) {
+function showBadge(source, id = "badge") {
   const onDevice = source === InferenceSource.ON_DEVICE;
-  $("badge").textContent = onDevice ? "On device" : "In cloud";
-  $("badge").className = onDevice ? "on-device" : "in-cloud";
+  $(id).textContent = onDevice ? "On device" : "In cloud";
+  $(id).className = "badge " + (onDevice ? "on-device" : "in-cloud");
 }
 
 let busy = false;
@@ -142,12 +148,18 @@ async function runAI(kind, prompt) {
       onText(result.text);
       showBadge(result.source);
       logRequest(kind, result);
-      if (kind === "coach") speak(result.text);
+      if (kind === "coach") {
+        speak(result.text);
+        $("live-tip").textContent = result.text;
+        $("live-tip").classList.remove("muted");
+        showBadge(result.source, "live-tip-badge");
+      }
     }
   } catch (err) {
     console.error(err);
     $("answer").textContent = "";
     showError(err.privacy ? err.message : explain(err, kind));
+    if (kind === "coach") $("live-tip").textContent = "The coach could not answer. Open the AI coach page for details.";
   } finally {
     setLoading(false);
   }
@@ -156,7 +168,8 @@ async function runAI(kind, prompt) {
 // ── Live ECG + AI coach ─────────────────────────────────────────────────────
 let lastAutoCoach = -Infinity;
 const history = createHistory({ sampleRate: 250 });
-initProfile({ onChange: (p) => monitor.setRules(personalRules(p)) });
+const status = createStatus();
+const profilePage = initProfile({ status, onChange: (p) => monitor.setRules(personalRules(p)) });
 const monitor = createMonitor({
   recorder: history,
   getRules: () => personalRules(readProfile()),
@@ -168,13 +181,42 @@ const monitor = createMonitor({
   },
 });
 
-$("coach-now").onclick = () => {
+function sessionSummary() {
+  const sum = monitor.summary();
+  if (!monitor.startedAt() || !sum.overall) return null;
+  return {
+    startAt: monitor.startedAt(),
+    minutes: Math.round(sum.durationSec / 6) / 10,
+    avgHr: Math.round(sum.overall.avg),
+    maxHr: Math.round(sum.overall.max),
+    alerts: sum.events.length,
+  };
+}
+const team = initTeam({ status, getSession: sessionSummary, onTeamChange: () => profilePage.renderIdentity() });
+initSettings();
+
+// once per second: live status for the profile page and the team
+setInterval(() => {
+  status.update(monitor.snapshot(), monitor.isRunning(), Date.now(), monitor.rules());
+  if (current === "profile") profilePage.renderStatus();
+  team.share();
+}, 1000);
+
+const coachNow = () => {
   if (!monitor.hasData()) {
     resetAnswer();
     showError("Start the live ECG and wait a few seconds for a heart rate first.");
     return;
   }
   runAI("coach", buildCoachPrompt(monitor.snapshot(), readProfile()));
+};
+$("coach-now").onclick = coachNow;
+$("live-coach").onclick = () => {
+  if (!monitor.hasData()) {
+    $("live-tip").textContent = "Start the monitor and wait a few seconds for a heart rate first.";
+    return;
+  }
+  coachNow();
 };
 
 $("doctor-report").onclick = () => {
@@ -220,6 +262,18 @@ $("init").onclick = async () => {
     showDeviceStatus();
   }
 };
+
+// ── Pages ──────────────────────────────────────────────────────────────────
+let current = null;
+initRouter({
+  onEnter(route) {
+    if (current === "history" && route !== "history") history.leavePage();
+    current = route;
+    if (route === "history") history.enterPage();
+    if (route === "team") team.enter();
+    if (route === "profile") profilePage.enter();
+  },
+});
 
 updateNetStatus();
 showDeviceStatus();

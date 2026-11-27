@@ -17,7 +17,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
   const chart = new EcgChart($("ecg-canvas"), { sampleRate: FS });
   let sim, detector, rhythm, timer, lastTick, lastUpdate, snap;
   let running = false;
-  let sensors, motionDetector, body, totals;
+  let sensors, motionDetector, body, totals, startedAt = null;
 
   // scenario picker
   for (const [key, s] of Object.entries(SCENARIOS)) {
@@ -40,6 +40,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
     chart.clear();
     chart.draw();
     lastUpdate = 0;
+    startedAt = null;
     render();
   }
 
@@ -129,6 +130,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
   function start() {
     if (running) return;
     running = true;
+    startedAt ??= Date.now();
     lastTick = performance.now();
     timer = setInterval(tick, 40); // ~25 fps: generate samples, run rules, redraw
     $("start").textContent = "Pause";
@@ -152,7 +154,10 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
 
   return {
     start,
+    isRunning: () => running,
+    startedAt: () => startedAt,
     setRules: (rules) => Object.assign(rhythm.rules, rules),
+    rules: () => rhythm.rules,
     snapshot: () => snap,
     summary: () => ({
       ...rhythm.summary(),
