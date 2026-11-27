@@ -13,6 +13,8 @@ export const ALERTS = {
   brady: { label: "Slow heart rate", severity: "medium" },
   irregular: { label: "Irregular rhythm", severity: "high" },
   aboveZone: { label: "Above exercise target zone", severity: "info" },
+  dangerHr: { label: "Heart rate dangerously high", severity: "high" },
+  highTemp: { label: "Body temperature too high", severity: "high" },
 };
 
 /** Detects R peaks: rising edge over a threshold, then the local maximum. */
@@ -83,7 +85,7 @@ export class RhythmMonitor {
   }
 
   /** Re-evaluate rules at signal time `t`. Returns the current snapshot. */
-  update(t, activity = "rest") {
+  update(t, activity = "rest", { tempC = null } = {}) {
     this.t = t;
     this.activity = activity;
     const r = this.rules;
@@ -105,6 +107,8 @@ export class RhythmMonitor {
       brady: hr !== null && hr < r.brady,
       irregular: cv !== null && cv > r.irregularCv,
       aboveZone: hr !== null && activity === "exercise" && hr > r.zoneMax,
+      dangerHr: hr !== null && activity === "exercise" && hr > r.maxHr,
+      highTemp: tempC !== null && tempC >= r.highTempC,
     };
 
     for (const [key, on] of Object.entries(conditions)) {

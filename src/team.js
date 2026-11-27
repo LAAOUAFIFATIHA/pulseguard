@@ -22,6 +22,8 @@ import {
 } from "./db.js";
 import { timeAgo, initials, TREND_EVERY_SEC } from "./status.js";
 import { sparkline, formatDuration } from "./sessions.js";
+import { trackLocation, currentLocation, locationProblem } from "./location.js";
+import { placeLine } from "./team-alerts.js";
 
 const $ = (id) => document.getElementById(id);
 const STALE_MS = 2 * 60 * 1000;
@@ -34,7 +36,7 @@ const el = (tag, className, text) => {
   return node;
 };
 
-export function initTeam({ status, getSession, onTeamChange }) {
+export function initTeam({ status, getSession, onTeamChange, isMonitoring }) {
   let unsubscribe = null;
   let unsubscribeRequests = null;
   let directory = [];
@@ -42,6 +44,7 @@ export function initTeam({ status, getSession, onTeamChange }) {
   let team = null;
   let lastShared = 0;
   let lastState = null;
+  let hadLocation = false;
   const say = (msg) => ($("team-status").textContent = msg);
   const fail = (err) => {
     console.error(err);
@@ -75,6 +78,7 @@ export function initTeam({ status, getSession, onTeamChange }) {
     card.append(body);
 
     if (state === "alert" && m.alert) card.append(el("p", "member-alert", m.alert));
+    if (state !== "offline" && m.location) card.append(placeLine(m.location));
 
     const facts = el("dl", "facts");
     const fact = (label, value) => facts.append(el("dt", null, label), el("dd", null, value));
@@ -332,16 +336,27 @@ export function initTeam({ status, getSession, onTeamChange }) {
 
   /** Called every second; writes at most every 15 s, or when the state changes. */
   function share() {
-    if (!getProfile()?.teamId || !$("team-share").checked) return;
+    const sharing = !!getProfile()?.teamId && $("team-share").checked;
+    const groupRun = sharing && $("team-group-run").checked && isMonitoring();
+    trackLocation(groupRun);
+    $("group-run-status").textContent = !$("team-group-run").checked
+      ? ""
+      : locationProblem() ?? (currentLocation() ? "Location is shared with your team." : "Start the monitor to share your location.");
+    if (!sharing) return;
+    const location = groupRun ? currentLocation() : null;
     const now = Date.now();
-    const changed = status.state !== lastState;
+    const key = `${status.state} ${status.urgent} ${!!location}`;
+    const changed = key !== lastState;
     if (!changed && now - lastShared < TREND_EVERY_SEC * 1000) return;
     if (!changed && status.state === "idle") return; // nothing new while stopped
     lastShared = now;
-    lastState = status.state;
+    lastState = key;
+    hadLocation = !!location;
     shareStatus(
       {
         state: status.state,
+        urgent: status.urgent,
+        location,
         hr: status.hr,
         alert: status.alert,
         lastNormalHr: status.lastNormalHr,
@@ -354,8 +369,20 @@ export function initTeam({ status, getSession, onTeamChange }) {
   }
 
   $("team-share").onchange = () => {
-    if (!$("team-share").checked) shareStatus({ state: "idle", hr: null, alert: null }, fail);
+    if (!$("team-share").checked) {
+      shareStatus({ state: "idle", urgent: false, hr: null, alert: null, location: null }, fail);
+      hadLocation = false;
+    }
     lastState = null;
+  };
+
+  $("team-group-run").onchange = () => {
+    if (!$("team-group-run").checked && hadLocation) {
+      shareStatus({ location: null }, fail);
+      hadLocation = false;
+    }
+    lastState = null;
+    share();
   };
 
   return { enter: render, share };

@@ -64,7 +64,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
     }
     chart.draw();
 
-    const { accel, readings } = sensors.generate(dt, sim.scenario.activity);
+    const { accel, readings } = sensors.generate(dt, sim.scenario.activity, sim.scenario);
     body.motion = motionDetector.push(accel);
     for (const r of readings) {
       Object.assign(body, r);
@@ -78,7 +78,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
     if (sim.t - lastUpdate >= 0.5) {
       lastUpdate = sim.t;
       const before = new Set(snap.activeAlerts.map((a) => a.type));
-      snap = Object.assign(rhythm.update(sim.t, sim.scenario.activity), body);
+      snap = Object.assign(rhythm.update(sim.t, sim.scenario.activity, body), body);
       recorder?.annotate(snap);
       recorder?.events(rhythm.events, sim.t);
       const fresh = snap.activeAlerts.filter((a) => !before.has(a.type));

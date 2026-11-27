@@ -47,6 +47,19 @@ export function buildCoachPrompt(snap, profile = {}) {
   );
 }
 
+/** Short automatic check; the reply must start with OK, WATCH or DANGER. */
+export function buildCheckPrompt(snap, profile = {}) {
+  const alerts = snap.activeAlerts.map((a) => a.label).join("; ") || "none";
+  const rhythm = snap.regular === null ? "unknown" : snap.regular ? "regular" : "irregular";
+  return (
+    "You check live wearable readings in a sports wellness app. You are not a doctor and must not diagnose.\n" +
+    describe(profile) +
+    `Activity: ${snap.activity}. Movement: ${snap.motion ?? "unknown"}. Heart rate: ${bpm(snap.hr)}. Rhythm: ${rhythm}. ` +
+    `Skin temperature: ${snap.tempC == null ? "unknown" : snap.tempC.toFixed(1) + " C"}. Active alerts: ${alerts}.\n` +
+    "Start your reply with exactly one word: OK, WATCH or DANGER. Then give one short sentence saying why and what to do."
+  );
+}
+
 /** Doctor-ready session report (cloud-first). */
 export function buildReportPrompt(sum, profile = {}) {
   const line = (name, s) =>

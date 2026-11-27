@@ -16,7 +16,7 @@ export class SensorSimulator {
   }
 
   /** `activity` is "rest" or "exercise". Returns new accel samples and 1 Hz readings. */
-  generate(seconds, activity) {
+  generate(seconds, activity, { heat = false } = {}) {
     const running = activity === "exercise";
     const accel = [];
     const exact = seconds * ACCEL_RATE + this.carry;
@@ -32,7 +32,8 @@ export class SensorSimulator {
     this.secondCarry += seconds;
     while (this.secondCarry >= 1) {
       this.secondCarry -= 1;
-      this.tempC += ((running ? 36 : 33.2) - this.tempC) / 120 + (this.rand() - 0.5) * 0.05;
+      const target = heat ? 38.8 : running ? 36 : 33.2;
+      this.tempC += (target - this.tempC) / (heat ? 12 : 120) + (this.rand() - 0.5) * 0.05;
       this.humidity += ((running ? 80 : 45) - this.humidity) / 90 + (this.rand() - 0.5) * 0.6;
       readings.push({ tempC: Math.round(this.tempC * 100) / 100, humidity: Math.round(this.humidity * 10) / 10 });
     }

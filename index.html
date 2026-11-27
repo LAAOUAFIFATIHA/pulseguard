@@ -117,6 +117,12 @@
       </div>
     </div>
 
+    <div id="team-alert" class="team-alert" role="alert" hidden>
+      <strong>Teammate alert</strong>
+      <ul id="team-alert-list"></ul>
+      <p class="hint">Check on them. In an emergency, call emergency services.</p>
+    </div>
+
     <!-- ── App shell ─────────────────────────────────────────────────── -->
     <div id="app" class="shell" hidden>
       <aside class="sidebar" id="sidebar">
@@ -156,6 +162,19 @@
 
         <!-- Live monitor -->
         <section class="page" data-page="live">
+          <div class="card check-card" id="check-card" data-state="idle">
+            <div class="check-main">
+              <span class="kpi-label">AI safety check</span>
+              <strong id="check-verdict">Waiting for data</strong>
+              <p id="check-message" aria-live="polite">The check starts by itself when heart-rate data arrives.</p>
+              <p class="hint"><span id="check-time"></span> <span id="check-badge" class="badge"></span></p>
+            </div>
+            <div class="check-options">
+              <label class="check"><input type="checkbox" id="auto-check" checked /> <span>Automatic AI check</span></label>
+              <label class="check"><input type="checkbox" id="auto-start" checked /> <span>Start monitoring automatically</span></label>
+            </div>
+          </div>
+
           <div class="kpis">
             <div class="kpi kpi-hr" id="hr-box" data-state="ok">
               <span class="kpi-label">Heart rate</span>
@@ -341,7 +360,7 @@
             </div>
             <div class="card span-2 privacy-box">
               <h3>What your team sees</h3>
-              <p class="muted">Your display name and role, live status (normal or alert), current and last normal heart rate, a short heart-rate trend and your last session summary. Never your email, profile details, raw ECG or AI answers. Leave the team at any time to stop sharing.</p>
+              <p class="muted">Your display name and role, live status (normal or alert), current and last normal heart rate, a short heart-rate trend and your last session summary. Your GPS position only while you switch on Group run. Never your email, profile details, raw ECG or AI answers. Leave the team at any time to stop sharing.</p>
             </div>
           </div>
 
@@ -369,9 +388,12 @@
               </div>
               <div class="actions">
                 <label class="check"><input type="checkbox" id="team-share" checked /> <span>Share my live status</span></label>
+                <label class="check"><input type="checkbox" id="team-group-run" /> <span>Group run: share my location</span></label>
+                <button type="button" id="enable-notifications" class="btn btn-outline">Enable notifications</button>
                 <button type="button" id="team-leave" class="btn btn-outline">Leave team</button>
               </div>
             </div>
+            <p id="group-run-status" class="hint" aria-live="polite"></p>
             <div id="team-requests" class="card requests" hidden>
               <h3>Join requests</h3>
               <ul id="request-list" class="request-list"></ul>

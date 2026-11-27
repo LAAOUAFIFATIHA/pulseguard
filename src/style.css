@@ -333,6 +333,21 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .request-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .request-list span { flex: 1; color: var(--text-h); font-weight: 600; }
 
+.check-card { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; border-left: 5px solid var(--border); }
+.check-card[data-state="ok"] { border-left-color: var(--ok); }
+.check-card[data-state="watch"] { border-left-color: var(--warn); background: linear-gradient(90deg, var(--warn-soft), var(--surface) 70%); }
+.check-card[data-state="danger"] { border-left-color: var(--bad); background: linear-gradient(90deg, var(--bad-soft), var(--surface) 70%); }
+.check-main { flex: 1 1 320px; min-width: 0; }
+.check-main strong { display: block; font-size: 24px; color: var(--text-h); }
+.check-options { display: flex; flex-direction: column; gap: 10px; }
+.team-alert { position: fixed; z-index: 50; right: 16px; bottom: 16px; width: min(420px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; background: var(--surface); border: 2px solid var(--bad); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); padding: 14px 16px; }
+.team-alert > strong { color: var(--bad); font-size: 16px; }
+.team-alert ul { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.team-alert li { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.team-alert li strong { color: var(--text-h); }
+.place { font-size: 13px; }
+.place a { color: var(--accent); font-weight: 600; }
+
 /* ── Profile and settings ───────────────────────────────────────────── */
 .profile-hero { display: flex; align-items: center; gap: 18px; }
 .profile-hero h2 { font-size: 22px; }

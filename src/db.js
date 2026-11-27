@@ -223,6 +223,7 @@ export function shareStatus(data, onError) {
   if (!profile?.teamId) return;
   const out = { ...data, displayName: profile.displayName, role: profile.role, updatedAt: serverTimestamp() };
   if ("lastNormalAt" in data) out.lastNormalAt = ts(data.lastNormalAt);
+  if (data.location) out.location = { ...data.location, at: ts(data.location.at) };
   if (data.session) out.session = { ...data.session, startAt: ts(data.session.startAt) };
   setDoc(memberRef(profile.teamId), out, { merge: true }).catch(onError);
 }

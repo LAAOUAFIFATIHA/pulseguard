@@ -206,3 +206,26 @@ test("only a coach can make a team premium, and only the owner publishes it", as
     name: "Mine", ownerUid: "alice", createdAt: serverTimestamp(), tier: "premium",
   }));
 });
+
+// ── Urgent alerts and location ─────────────────────────────────────────────
+const spot = (extra = {}) => ({ lat: 34.0, lng: -6.84, accuracy: 12, at: t0, ...extra });
+
+test("a member may share an urgent alert with a valid location, only on their own card", async () => {
+  await seedTeam();
+  const db = as("alice");
+  const ref = doc(db, `teams/${CODE}/members/alice`);
+  const card = (extra) => ({ ...member("alice"), joinedAt: t0, state: "alert", urgent: true, ...extra });
+  await assertSucceeds(setDoc(ref, card({ location: spot() })));
+  await assertSucceeds(setDoc(ref, card({ location: null })));
+  await assertFails(setDoc(ref, card({ location: spot({ lat: 999 }) })));
+  await assertFails(setDoc(ref, card({ location: spot({ address: "home" }) })));
+  await assertFails(setDoc(ref, card({ urgent: "yes" })));
+  await assertFails(updateDoc(doc(as("coach"), `teams/${CODE}/members/alice`), { location: spot() }));
+  await assertFails(getDoc(doc(as("mallory"), `teams/${CODE}/members/alice`)));
+});
+
+test("the new alert types can be saved as events", async () => {
+  const db = as("alice");
+  await assertSucceeds(setDoc(doc(db, "users/alice/events/e2"), event({ type: "highTemp", severity: "high" })));
+  await assertSucceeds(setDoc(doc(db, "users/alice/events/e3"), event({ type: "dangerHr", severity: "high" })));
+});

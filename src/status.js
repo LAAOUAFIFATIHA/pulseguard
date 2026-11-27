@@ -2,6 +2,7 @@
 // last heart rate measured while everything was normal, and a short trend.
 // Pure logic, so it can be unit-tested.
 import { DEFAULT_RULES } from "./rules.js";
+import { URGENT_ALERTS } from "./healthcheck.js";
 
 export const TREND_EVERY_SEC = 15;
 export const TREND_POINTS = 30;
@@ -13,19 +14,23 @@ export function isNormalHr(hr, activity, rules = DEFAULT_RULES) {
 }
 
 export function createStatus() {
-  const s = { state: "idle", hr: null, alert: null, lastNormalHr: null, lastNormalAt: null, trend: [] };
+  const s = { state: "idle", urgent: false, hr: null, alert: null, lastNormalHr: null, lastNormalAt: null, trend: [] };
   let lastTrend = -Infinity;
 
   /** `snap` is the monitor snapshot; `now` is a time in ms. */
   s.update = (snap, running, now = Date.now(), rules = DEFAULT_RULES) => {
     if (!running || snap.hr == null) {
       s.state = "idle";
+      s.urgent = false;
       s.hr = null;
       s.alert = null;
       return s;
     }
     s.hr = Math.round(snap.hr);
-    const alert = snap.activeAlerts[0];
+    // an urgent alert is named before a minor one
+    const serious = snap.activeAlerts.find((a) => URGENT_ALERTS.includes(a.type));
+    const alert = serious ?? snap.activeAlerts[0];
+    s.urgent = !!serious;
     s.state = alert ? "alert" : "normal";
     s.alert = alert?.label ?? null;
     if (!alert && isNormalHr(snap.hr, snap.activity, rules)) {

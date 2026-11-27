@@ -68,7 +68,7 @@ service cloud.firestore {
     function validEvent(d) {
       return d.keys().hasOnly(['type', 'severity', 'startAt', 'endAt', 'peakHr'])
         && d.keys().hasAll(['type', 'severity', 'startAt', 'endAt', 'peakHr'])
-        && d.type in ['noSignal', 'tachyRest', 'brady', 'irregular', 'aboveZone']
+        && d.type in ['noSignal', 'tachyRest', 'brady', 'irregular', 'aboveZone', 'dangerHr', 'highTemp']
         && d.severity in ['info', 'warning', 'medium', 'high']
         && d.startAt is timestamp
         && (d.endAt == null || d.endAt is timestamp)
@@ -103,16 +103,29 @@ service cloud.firestore {
         || get(/databases/$(database)/documents/teams/$(code)/requests/$(uid)).data.status == 'approved';
     }
 
+    function validLocation(l) {
+      return l == null
+        || (l is map
+            && l.keys().hasOnly(['lat', 'lng', 'accuracy', 'at'])
+            && l.lat is number && l.lat >= -90 && l.lat <= 90
+            && l.lng is number && l.lng >= -180 && l.lng <= 180
+            && l.accuracy is number && l.accuracy >= 0
+            && l.at is timestamp);
+    }
+
     // What a member shares with their team: summaries only.
     function validMember(d) {
       return d.keys().hasOnly(['displayName', 'role', 'joinedAt', 'updatedAt', 'state', 'hr', 'alert',
-                               'lastNormalHr', 'lastNormalAt', 'trend', 'session'])
+                               'lastNormalHr', 'lastNormalAt', 'trend', 'session',
+                               'urgent', 'location'])
         && d.keys().hasAll(['displayName', 'role', 'joinedAt', 'updatedAt', 'state'])
         && shortString(d.displayName, 60)
         && d.role in ['athlete', 'coach']
         && d.joinedAt is timestamp
         && d.updatedAt == request.time
         && d.state in ['idle', 'normal', 'alert']
+        && d.get('urgent', false) is bool
+        && validLocation(d.get('location', null))
         && numOrNull(d.get('hr', null), 0, 300)
         && (d.get('alert', null) == null || shortString(d.alert, 60))
         && numOrNull(d.get('lastNormalHr', null), 0, 300)

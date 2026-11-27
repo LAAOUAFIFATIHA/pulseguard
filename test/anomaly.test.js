@@ -28,6 +28,7 @@ const expected = {
   tachy: { hr: [125, 145], alerts: ["tachyRest"] },
   brady: { hr: [36, 48], alerts: ["brady"] },
   irregular: { hr: null, alerts: ["irregular"] },
+  overheat: { hr: [148, 168], alerts: ["aboveZone"] }, // temperature is not fed here
   electrodeOff: { hr: null, alerts: ["noSignal"] },
 };
 

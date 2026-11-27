@@ -8,7 +8,9 @@ import { initRouter } from "./router.js";
 import { createStatus } from "./status.js";
 import { initTeam } from "./team.js";
 import { initSettings } from "./settings.js";
-import { buildCoachPrompt, buildReportPrompt } from "./prompts.js";
+import { buildCoachPrompt, buildReportPrompt, buildCheckPrompt } from "./prompts.js";
+import { initTeamAlerts } from "./team-alerts.js";
+import { createScheduler, ruleLevel, parseVerdict, worst } from "./healthcheck.js";
 
 const $ = (id) => document.getElementById(id);
 const AI_BUTTONS = ["ask", "report", "symptom", "coach-now", "doctor-report", "live-coach"];
@@ -192,13 +194,79 @@ function sessionSummary() {
     alerts: sum.events.length,
   };
 }
-const team = initTeam({ status, getSession: sessionSummary, onTeamChange: () => profilePage.renderIdentity() });
+const teamAlerts = initTeamAlerts();
+const team = initTeam({
+  status,
+  getSession: sessionSummary,
+  isMonitoring: () => monitor.isRunning(),
+  onTeamChange: () => {
+    profilePage.renderIdentity();
+    teamAlerts.restart();
+  },
+});
 initSettings();
 
-// once per second: live status for the profile page and the team
+// ── Automatic safety check ─────────────────────────────────────────────────
+const VERDICT = { ok: "No warning signs", watch: "Take care", danger: "Stop and check" };
+const scheduler = createScheduler();
+let aiCheck = null; // { level, message, source, at, alerts }
+let checking = false;
+
+const alertKey = (snap) => snap.activeAlerts.map((a) => a.type).sort().join();
+
+async function runCheck(snap) {
+  if (checking || busy) return;
+  checking = true;
+  $("check-time").textContent = "AI is checking…";
+  try {
+    const result = await ask(buildCheckPrompt(snap, readProfile()));
+    const verdict = parseVerdict(result.text);
+    aiCheck = { ...verdict, source: result.source, at: new Date(), alerts: alertKey(snap) };
+  } catch (err) {
+    console.warn("Automatic check failed", err);
+    aiCheck = { failed: true, level: null, message: "The AI is not reachable. The warning rules still apply.", at: new Date(), alerts: alertKey(snap) };
+  } finally {
+    checking = false;
+  }
+}
+
+function renderCheck() {
+  const snap = monitor.snapshot();
+  const card = $("check-card");
+  const live = monitor.isRunning() && snap.hr != null;
+  if (!live) {
+    card.dataset.state = "idle";
+    $("check-verdict").textContent = "Waiting for data";
+    $("check-message").textContent = "The check starts by itself when heart-rate data arrives.";
+    $("check-badge").className = "badge";
+    $("check-badge").textContent = "";
+    if (!checking) $("check-time").textContent = "";
+    return;
+  }
+  // an AI answer counts only while the alerts are the ones it saw
+  const current = aiCheck && aiCheck.alerts === alertKey(snap) ? aiCheck : null;
+  const level = worst(ruleLevel(snap), current?.level ?? "ok");
+  card.dataset.state = level;
+  $("check-verdict").textContent = VERDICT[level];
+  $("check-message").textContent =
+    current?.message || snap.activeAlerts.map((a) => a.label).join(". ") || "Rules see nothing unusual.";
+  if (current?.source) showBadge(current.source, "check-badge");
+  else {
+    $("check-badge").className = "badge";
+    $("check-badge").textContent = "";
+  }
+  if (!checking) $("check-time").textContent = current ? `${current.failed ? "AI check failed" : "AI checked"} at ${current.at.toLocaleTimeString()}` : "";
+}
+
+// once per second: safety check, live status for the profile page and the team
 setInterval(() => {
   status.update(monitor.snapshot(), monitor.isRunning(), Date.now(), monitor.rules());
   if (current === "profile") profilePage.renderStatus();
+  const snap = monitor.snapshot();
+  if ($("auto-check").checked && !checking && !busy && scheduler.due(snap, monitor.isRunning(), Date.now() / 1000)) {
+    runCheck(snap);
+  }
+  renderCheck();
   team.share();
 }, 1000);
 
@@ -274,6 +342,23 @@ initRouter({
     if (route === "profile") profilePage.enter();
   },
 });
+
+// ── Automatic start ────────────────────────────────────────────────────────
+const remember = (id, key) => {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved !== null) $(id).checked = saved === "1";
+  } catch {}
+  $(id).addEventListener("change", () => {
+    try {
+      localStorage.setItem(key, $(id).checked ? "1" : "0");
+    } catch {}
+    if (id === "auto-check") scheduler.reset();
+  });
+};
+remember("auto-start", "pulseguard.autoStart");
+remember("auto-check", "pulseguard.autoCheck");
+if ($("auto-start").checked) monitor.start();
 
 updateNetStatus();
 showDeviceStatus();
