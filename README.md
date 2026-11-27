@@ -18,6 +18,23 @@ Then fill `.env` with your Firebase web config and open the address Vite prints 
 
 Create a Firebase project (Analytics not needed, Spark plan is fine), open **AI Services → AI Logic → Get started**, choose the **Gemini Developer API**, and finish the workflow (it enforces App Check for AI Logic). Register a web app under **Project settings → Your apps → Web** and copy its config into `.env`. Run `npm run dev`, copy the `App Check debug token` printed in the browser console, and add it under **Security → App Check → Apps → Manage debug tokens** (optionally also put it in `.env` as `VITE_APPCHECK_DEBUG_TOKEN` so it stays the same).
 
+## App pages
+
+| Page | What it does |
+| --- | --- |
+| **Live monitor** | Live ECG, heart rate, temperature, humidity, movement, alerts and the latest coaching tip |
+| **AI coach** | Coaching tip (prefer on-device), doctor report (prefer cloud), request log, on-device model, prompt lab |
+| **History** | Saved sessions with a replay player (heart-rate chart, alerts, ECG illustration) |
+| **Team** | Create or join a team with an invite code; teammates see each other's shared status |
+| **Profile** | Current status, last normal heart rate, personal thresholds, personal details |
+| **Settings** | Data collection, raw-signal download, export, sign out, delete account |
+
+Sign out is always available in the sidebar (or the menu on phones) and in the top bar.
+
+### Teams and privacy
+
+Joining a team is opt-in and needs the 8-character invite code. Members see each other's display name, role, live status, current and last normal heart rate, a 30-point heart-rate trend and last session summary, updated at most every 15 s while monitoring. They never see email, profile details, raw ECG or AI answers. Untick **Share my live status** or leave the team to stop sharing. The team owner can remove members. Anyone who has the code can join, so share it only with your team.
+
 ## Accounts and data
 
 Everyone signs in before using the app (email/password with email verification, or Google). On first sign-in the app asks for a display name, age, optional resting heart rate, role (athlete or coach) and consent. Age and resting heart rate personalise the alert thresholds ([src/rules.js](src/rules.js)); without them the defaults above apply.
@@ -27,6 +44,8 @@ Everyone signs in before using the app (email/password with email verification, 
 | `users/{uid}` | profile and consent date |
 | `users/{uid}/windows` | one summary per 10 s: heart rate, rhythm variation, movement, temperature, humidity, label |
 | `users/{uid}/events` | anomaly events (type, start, end, peak) |
+| `teams/{code}` | team name and owner |
+| `teams/{code}/members/{uid}` | what each member shares with the team |
 
 Raw ECG and accelerometer signals are **never uploaded**. **Download raw signal** saves the last 30 minutes from the browser to your computer, for training with `ml/train.py`. All sensor values are simulated.
 
