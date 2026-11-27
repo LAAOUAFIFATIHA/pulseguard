@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0b1220" />
     <title>PulseGuard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body>
     <!-- Shared icons -->
@@ -21,6 +24,10 @@
         <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></symbol>
         <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
         <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+        <symbol id="i-temp" viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/></symbol>
+        <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/></symbol>
+        <symbol id="i-run" viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="1.8"/><path d="M7 21l3.5-6.5L14 17v4M5 12l3.5-3h4.5l3 3.5 3 .5M10.5 14.5 12 9"/></symbol>
         <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></symbol>
       </defs>
     </svg>
@@ -128,7 +135,8 @@
       <aside class="sidebar" id="sidebar">
         <div class="brand"><svg class="logo"><use href="#i-logo" /></svg><span>PulseGuard</span></div>
         <nav class="nav" aria-label="Main">
-          <a href="#/live" data-route="live"><svg><use href="#i-live" /></svg>Live monitor</a>
+          <span class="nav-label">Menu</span>
+          <a href="#/live" data-route="live"><svg><use href="#i-live" /></svg>Live monitor<span class="nav-live">Live</span></a>
           <a href="#/coach" data-route="coach"><svg><use href="#i-coach" /></svg>AI coach</a>
           <a href="#/history" data-route="history"><svg><use href="#i-history" /></svg>History</a>
           <a href="#/team" data-route="team"><svg><use href="#i-team" /></svg>Team</a>
@@ -162,12 +170,13 @@
 
         <!-- Live monitor -->
         <section class="page" data-page="live">
-          <div class="card check-card" id="check-card" data-state="idle">
+          <div class="check-card" id="check-card" data-state="idle">
+            <div class="check-icon" aria-hidden="true"><svg><use href="#i-shield" /></svg></div>
             <div class="check-main">
-              <span class="kpi-label">AI safety check</span>
+              <span class="eyebrow">AI safety check</span>
               <strong id="check-verdict">Waiting for data</strong>
               <p id="check-message" aria-live="polite">Press Start: the check then runs by itself.</p>
-              <p class="hint"><span id="check-time"></span> <span id="check-badge" class="badge"></span></p>
+              <p class="check-meta"><span id="check-time"></span> <span id="check-badge" class="badge"></span></p>
             </div>
             <div class="check-options">
               <label class="check"><input type="checkbox" id="auto-check" checked /> <span>Automatic AI check</span></label>
@@ -175,35 +184,45 @@
             </div>
           </div>
 
-          <div class="kpis">
-            <div class="kpi kpi-hr" id="hr-box" data-state="ok">
-              <span class="kpi-label">Heart rate</span>
-              <div class="hr-line">
-                <svg id="hr-heart" class="heart" aria-hidden="true"><use href="#i-logo" /></svg>
-                <span id="hr-value">--</span><span class="unit">bpm</span>
+          <div class="live-grid">
+            <div class="monitor-panel">
+              <div class="monitor-top">
+                <div class="hr-block" id="hr-box" data-state="ok">
+                  <span class="eyebrow">Heart rate</span>
+                  <div class="hr-line">
+                    <svg id="hr-heart" class="heart" aria-hidden="true"><use href="#i-logo" /></svg>
+                    <span id="hr-value">--</span><span class="unit">bpm</span>
+                  </div>
+                  <span class="hr-sub"><span id="activity">Rest</span> · <span id="rhythm">Rhythm: measuring…</span></span>
+                </div>
+                <div class="monitor-side">
+                  <span class="rec"><i aria-hidden="true"></i><span id="session-time">00:00</span></span>
+                  <span class="monitor-caption">Smart shirt (simulated) · ECG 250 Hz</span>
+                </div>
               </div>
-              <span class="kpi-sub"><span id="activity">Rest</span> · <span id="rhythm">Rhythm: measuring…</span></span>
-            </div>
-            <div class="kpi"><span class="kpi-label">Skin temperature</span><strong id="temp-value">--</strong></div>
-            <div class="kpi"><span class="kpi-label">Humidity</span><strong id="humidity-value">--</strong></div>
-            <div class="kpi"><span class="kpi-label">Movement</span><strong id="motion-value">--</strong></div>
-            <div class="kpi"><span class="kpi-label">Session</span><strong id="session-time">00:00</strong></div>
-          </div>
-
-          <div class="card">
-            <div class="card-head">
-              <div>
-                <h2>ECG</h2>
-                <p class="muted">Simulated smart shirt · 250 Hz</p>
-              </div>
-              <div class="controls">
+              <canvas id="ecg-canvas" class="ecg ecg-dark ecg-live" aria-label="Live ECG trace"></canvas>
+              <div class="monitor-controls">
                 <label for="scenario" class="sr-only">Scenario</label>
-                <select id="scenario"></select>
+                <select id="scenario" class="select-dark"></select>
                 <button id="start" class="btn btn-primary">Start</button>
-                <button id="restart" class="btn btn-outline">Restart</button>
+                <button id="restart" class="btn btn-dark">Restart</button>
               </div>
             </div>
-            <canvas id="ecg-canvas" class="ecg" aria-label="Live ECG trace"></canvas>
+
+            <div class="vitals-col">
+              <div class="vital">
+                <span class="vital-icon tone-warm"><svg><use href="#i-temp" /></svg></span>
+                <div><span class="eyebrow">Skin temperature</span><strong id="temp-value">--</strong></div>
+              </div>
+              <div class="vital">
+                <span class="vital-icon tone-blue"><svg><use href="#i-drop" /></svg></span>
+                <div><span class="eyebrow">Humidity</span><strong id="humidity-value">--</strong></div>
+              </div>
+              <div class="vital">
+                <span class="vital-icon tone-green"><svg><use href="#i-run" /></svg></span>
+                <div><span class="eyebrow">Movement</span><strong id="motion-value">--</strong></div>
+              </div>
+            </div>
           </div>
 
           <div class="grid-2">

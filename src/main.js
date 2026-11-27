@@ -267,6 +267,7 @@ setInterval(() => {
     runCheck(snap);
   }
   renderCheck();
+  document.body.dataset.live = String(monitor.isRunning());
   team.share();
 }, 1000);
 

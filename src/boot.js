@@ -174,11 +174,11 @@ async function route(user) {
       $("ob-name").value ||= user.displayName ?? "";
       return show("onboard-screen");
     }
-    show("app");
     if (!appLoaded) {
       appLoaded = true;
       await import("./main.js");
     }
+    show("app");
   } catch (err) {
     console.error(err);
     show("boot-screen");
