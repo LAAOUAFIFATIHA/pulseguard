@@ -401,3 +401,96 @@ test("a pending request lets each side see the other card, even when not findabl
   await assertSucceeds(getDoc(doc(as("alice"), "profiles/bob")));
   await assertFails(getDoc(doc(as("carol"), "profiles/bob")));
 });
+
+// ── Run posts, feed visibility and likes ───────────────────────────────────
+const post = (owner, visibility = "public", extra = {}) => ({
+  ownerUid: owner,
+  author: { name: owner[0].toUpperCase() + owner.slice(1), handle: owner + "_run", avatar: "🏃" },
+  createdAt: serverTimestamp(),
+  caption: "Easy morning run",
+  visibility,
+  stats: { distanceM: 5200, seconds: 1800, avgHr: 142, maxHr: 168, alerts: 0, avgTempC: 34.1 },
+  trend: [130, 140, 145],
+  likeCount: 0,
+  ...extra,
+});
+
+async function seedPosts() {
+  await seedFriends(); // alice and bob are friends; carol and mallory are strangers
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    for (const [id, owner, vis] of [["pub", "bob", "public"], ["fr", "bob", "friends"], ["priv", "bob", "private"]]) {
+      await setDoc(doc(db, `posts/${id}`), { ...post(owner, vis), createdAt: t0 });
+    }
+  });
+}
+
+test("posts: created by the owner with their own card, no extra data", async () => {
+  await seedCards();
+  const alice = as("alice");
+  await assertSucceeds(setDoc(doc(alice, "posts/a1"), post("alice")));
+  await assertFails(setDoc(doc(alice, "posts/a2"), post("bob")));
+  await assertFails(setDoc(doc(alice, "posts/a3"), post("alice", "public", { author: { name: "Bob", handle: "bob_run", avatar: "🏃" } })));
+  await assertFails(setDoc(doc(alice, "posts/a4"), post("alice", "public", { likeCount: 50 })));
+  await assertFails(setDoc(doc(alice, "posts/a5"), post("alice", "public", { location: { lat: 1, lng: 2 } })));
+  await assertFails(setDoc(doc(alice, "posts/a6"), post("alice", "public", { stats: { distanceM: 5, seconds: 10, alerts: 0, samples: [1] } })));
+  await assertFails(setDoc(doc(alice, "posts/a7"), post("alice", "public", { caption: "x".repeat(281) })));
+});
+
+test("visibility: public for all, friends for friends, private for the owner", async () => {
+  await seedPosts();
+  const alice = as("alice"); // friend of bob
+  const carol = as("carol"); // stranger
+  await assertSucceeds(getDoc(doc(alice, "posts/pub")));
+  await assertSucceeds(getDoc(doc(alice, "posts/fr")));
+  await assertFails(getDoc(doc(alice, "posts/priv")));
+  await assertSucceeds(getDoc(doc(carol, "posts/pub")));
+  await assertFails(getDoc(doc(carol, "posts/fr")));
+  await assertSucceeds(getDoc(doc(as("bob"), "posts/priv")));
+  await assertFails(getDoc(doc(as("carol", false), "posts/pub")));
+});
+
+test("feed queries: public posts, a friend's posts, and nothing hidden leaks", async () => {
+  await seedPosts();
+  const { orderBy } = await import("firebase/firestore");
+  const alice = as("alice");
+  const carol = as("carol");
+  await assertSucceeds(getDocs(query(collection(carol, "posts"), where("visibility", "==", "public"), orderBy("createdAt", "desc"))));
+  await assertSucceeds(getDocs(query(collection(alice, "posts"), where("ownerUid", "==", "bob"), where("visibility", "==", "friends"))));
+  await assertFails(getDocs(query(collection(carol, "posts"), where("ownerUid", "==", "bob"), where("visibility", "==", "friends"))));
+  await assertFails(getDocs(query(collection(alice, "posts"), where("ownerUid", "==", "bob"))));
+  await assertFails(getDocs(collection(carol, "posts")));
+});
+
+test("only the owner edits caption or visibility, or deletes", async () => {
+  await seedPosts();
+  await assertSucceeds(updateDoc(doc(as("bob"), "posts/pub"), { caption: "Better caption", visibility: "friends" }));
+  await assertFails(updateDoc(doc(as("bob"), "posts/fr"), { stats: { distanceM: 99999, seconds: 10, alerts: 0 } }));
+  await assertFails(updateDoc(doc(as("alice"), "posts/fr"), { caption: "hacked" }));
+  await assertFails(deleteDoc(doc(as("alice"), "posts/fr")));
+  await assertSucceeds(deleteDoc(doc(as("bob"), "posts/fr")));
+});
+
+test("likes: one per person, the counter moves only with your own like", async () => {
+  await seedPosts();
+  const { increment } = await import("firebase/firestore");
+  const like = (db, delta, add) => {
+    const b = writeBatch(db);
+    if (add) b.set(doc(db, "posts/pub/likes/carol"), { at: serverTimestamp() });
+    else b.delete(doc(db, "posts/pub/likes/carol"));
+    b.update(doc(db, "posts/pub"), { likeCount: increment(delta) });
+    return b.commit();
+  };
+  const carol = as("carol");
+  await assertFails(updateDoc(doc(carol, "posts/pub"), { likeCount: 1000 }));
+  await assertFails(updateDoc(doc(carol, "posts/pub"), { likeCount: increment(1) })); // no like doc
+  await assertSucceeds(like(carol, 1, true));
+  await assertFails(like(carol, 1, true)); // twice
+  await assertFails(setDoc(doc(carol, "posts/pub/likes/alice"), { at: serverTimestamp() })); // for someone else
+  await assertSucceeds(like(carol, -1, false));
+  // a hidden post cannot be liked
+  const b = writeBatch(carol);
+  b.set(doc(carol, "posts/fr/likes/carol"), { at: serverTimestamp() });
+  b.update(doc(carol, "posts/fr"), { likeCount: increment(1) });
+  await assertFails(b.commit());
+});

@@ -11,6 +11,7 @@ import { initSettings } from "./settings.js";
 import { buildCoachPrompt, buildReportPrompt, buildCheckPrompt } from "./prompts.js";
 import { initTeamAlerts } from "./team-alerts.js";
 import { initFriends } from "./friends.js";
+import { initHome } from "./home.js";
 import { createScheduler, ruleLevel, parseVerdict, worst } from "./healthcheck.js";
 
 const $ = (id) => document.getElementById(id);
@@ -170,7 +171,8 @@ async function runAI(kind, prompt) {
 
 // ── Live ECG + AI coach ─────────────────────────────────────────────────────
 let lastAutoCoach = -Infinity;
-const history = createHistory({ sampleRate: 250 });
+const history = createHistory({ sampleRate: 250, onShare: (s) => home.openShare(s) });
+const home = initHome();
 const status = createStatus();
 const profilePage = initProfile({ status, onChange: (p) => monitor.setRules(personalRules(p)) });
 const monitor = createMonitor({
@@ -353,6 +355,7 @@ initRouter({
       friends.enterProfile();
     }
     if (route === "friends") friends.enter();
+    if (route === "home") home.enter();
   },
 });
 

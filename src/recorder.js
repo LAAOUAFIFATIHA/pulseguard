@@ -34,7 +34,7 @@ export class ChunkRecorder {
     this.onChunk = onChunk;
     this.index = 0;
     this.current = null;
-    this.pending = { accel: [], tempC: [], humidity: [] };
+    this.pending = { accel: [], tempC: [], humidity: [], speedKmh: [] };
   }
 
   /** Accelerometer samples and 1 Hz temperature / humidity readings. */
@@ -43,6 +43,7 @@ export class ChunkRecorder {
     for (const r of readings) {
       this.pending.tempC.push(r.tempC);
       this.pending.humidity.push(r.humidity);
+      if (r.speedKmh != null) this.pending.speedKmh.push(r.speedKmh);
     }
   }
 
@@ -72,7 +73,7 @@ export class ChunkRecorder {
     const c = this.current;
     this.current = null;
     const body = this.pending;
-    this.pending = { accel: [], tempC: [], humidity: [] };
+    this.pending = { accel: [], tempC: [], humidity: [], speedKmh: [] };
     if (!c || c.samples.length < this.fs) return;
     this.onChunk({
       index: this.index++,
@@ -90,6 +91,7 @@ export class ChunkRecorder {
       accel: encodeSamples(body.accel), // g x 1000
       tempC: body.tempC,
       humidity: body.humidity,
+      speedKmh: body.speedKmh,
     });
   }
 }

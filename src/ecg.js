@@ -5,11 +5,11 @@
 
 export const SCENARIOS = {
   rest: { label: "Resting, normal rhythm", activity: "rest", hr: 68 },
-  exercise: { label: "Jogging", activity: "exercise", hr: 150 },
+  exercise: { label: "Jogging", activity: "exercise", hr: 150, speedKmh: 9.5 },
   tachy: { label: "Fast heart rate at rest", activity: "rest", hr: 135 },
   brady: { label: "Slow heart rate", activity: "rest", hr: 42 },
   irregular: { label: "Irregular rhythm", activity: "rest", hr: 95, irregular: true },
-  overheat: { label: "Running in heat (overheating)", activity: "exercise", hr: 158, heat: true },
+  overheat: { label: "Running in heat (overheating)", activity: "exercise", hr: 158, heat: true, speedKmh: 8.5 },
   electrodeOff: { label: "Electrode off (no signal)", activity: "rest", hr: 68, noSignal: true },
 };
 

@@ -21,5 +21,7 @@ export function summarize(chunk) {
     avgTempC: round(mean(chunk.tempC ?? []), 2),
     avgHumidity: round(mean(chunk.humidity ?? [])),
     alerts: chunk.alerts.slice(0, 10),
+    // one speed reading per second: metres = sum of km/h / 3.6
+    distanceM: round((chunk.speedKmh ?? []).reduce((s, v) => s + v / 3.6, 0), 0),
   };
 }

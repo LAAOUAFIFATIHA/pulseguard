@@ -1,5 +1,6 @@
 // One page per feature, chosen by the URL hash (#/live, #/coach, ...).
 const ROUTES = {
+  home: ["Home", "Runs shared by you, your friends and the community"],
   live: ["Live monitor", "Real-time ECG, heart rate and body sensors"],
   coach: ["AI coach", "Hybrid AI: Gemini Nano on device, Gemini in the cloud"],
   history: ["History", "Your saved sessions, ready to replay"],
@@ -25,7 +26,7 @@ export function initRouter({ onEnter } = {}) {
 
   function go() {
     const wanted = location.hash.replace(/^#\/?/, "");
-    const route = ROUTES[wanted] ? wanted : "live";
+    const route = ROUTES[wanted] ? wanted : "home";
     for (const page of pages) page.hidden = page.dataset.page !== route;
     for (const link of links) {
       if (link.dataset.route === route) link.setAttribute("aria-current", "page");

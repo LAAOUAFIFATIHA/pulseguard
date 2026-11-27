@@ -6,6 +6,7 @@ import { summarize } from "./summary.js";
 import { groupSessions, formatDuration, sparkline } from "./sessions.js";
 import { createReplay } from "./replay.js";
 import { SCENARIOS } from "./ecg.js";
+import { formatKm, runTotals } from "./run.js";
 
 const $ = (id) => document.getElementById(id);
 const MAX_RAW_CHUNKS = 180; // 30 minutes kept in memory
@@ -19,7 +20,7 @@ export function download(name, data) {
 
 const newSessionId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-export function createHistory({ sampleRate }) {
+export function createHistory({ sampleRate, onShare }) {
   const raw = [];
   let tracked = new Map(); // rhythm event object -> { id, ended }
   let saved = 0;
@@ -89,18 +90,20 @@ export function createHistory({ sampleRate }) {
       <div class="session-main">
         <div class="session-stats">
           <span><b>${formatDuration(s.seconds)}</b> duration</span>
+          <span><b>${formatKm(runTotals(s.windows).distanceM)}</b> distance</span>
           <span><b>${s.avgHr == null ? "--" : Math.round(s.avgHr)}</b> avg bpm</span>
           <span><b>${s.maxHr == null ? "--" : Math.round(s.maxHr)}</b> max bpm</span>
         </div>
         <div class="session-tags"></div>
       </div>
       ${sparkline(s.windows.map((w) => w.avgHr))}
-      <div class="session-side">${alerts}<button type="button" class="btn btn-primary btn-sm">Replay</button></div>`;
+      <div class="session-side">${alerts}<button type="button" class="btn btn-outline btn-sm" data-act="share">Share</button><button type="button" class="btn btn-primary btn-sm" data-act="replay">Replay</button></div>`;
     const tags = row.querySelector(".session-tags");
     for (const label of s.labels) {
       tags.append(Object.assign(document.createElement("span"), { className: "chip static", textContent: LABELS[label] ?? label }));
     }
-    row.querySelector("button").onclick = () => replay.open(s);
+    row.querySelector('[data-act="replay"]').onclick = () => replay.open(s);
+    row.querySelector('[data-act="share"]').onclick = () => onShare?.(s);
     return row;
   }
 

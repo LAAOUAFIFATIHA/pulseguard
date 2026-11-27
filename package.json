@@ -10,7 +10,8 @@
     "test": "node --test \"test/*.test.js\"",
     "deploy": "npm test && vite build && firebase deploy --only hosting",
     "test:rules": "firebase emulators:exec --only firestore --project demo-pulseguard \"node --test test/rules/firestore.rules.test.mjs\"",
-    "emulators": "firebase emulators:start --only auth,firestore --project pulseguard-792bd"
+    "emulators": "firebase emulators:start --only auth,firestore --project pulseguard-792bd",
+    "seed:demo": "node scripts/seed-demo.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",

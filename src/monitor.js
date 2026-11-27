@@ -4,6 +4,7 @@ import { EcgSimulator, SCENARIOS } from "./ecg.js";
 import { BeatDetector, RhythmMonitor } from "./anomaly.js";
 import { EcgChart } from "./chart.js";
 import { SensorSimulator, MotionDetector } from "./sensors.js";
+import { formatKm, formatPace } from "./run.js";
 
 const FS = 250;
 const $ = (id) => document.getElementById(id);
@@ -34,8 +35,8 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
     rhythm = new RhythmMonitor(getRules?.());
     sensors = new SensorSimulator();
     motionDetector = new MotionDetector();
-    body = { motion: null, tempC: null, humidity: null };
-    totals = { n: 0, moving: 0, tempC: 0, humidity: 0 };
+    body = { motion: null, tempC: null, humidity: null, speedKmh: 0 };
+    totals = { n: 0, moving: 0, tempC: 0, humidity: 0, distanceM: 0 };
     snap = rhythm.snapshot(null, null);
     chart.clear();
     chart.draw();
@@ -71,6 +72,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
       totals.n++;
       totals.tempC += r.tempC;
       totals.humidity += r.humidity;
+      totals.distanceM += (r.speedKmh ?? 0) / 3.6;
       if (body.motion === "moving") totals.moving++;
     }
     recorder?.sensors({ accel, readings });
@@ -98,6 +100,8 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
     $("temp-value").textContent = body.tempC == null ? "--" : body.tempC.toFixed(1) + " °C";
     $("humidity-value").textContent = body.humidity == null ? "--" : Math.round(body.humidity) + " %";
     $("motion-value").textContent = body.motion == null ? "--" : body.motion === "moving" ? "Moving" : "Still";
+    $("distance-value").textContent = totals.n ? formatKm(totals.distanceM) : "--";
+    $("pace-value").textContent = formatPace(body.speedKmh);
     $("hr-value").textContent = snap.hr == null ? "--" : Math.round(snap.hr);
     $("session-time").textContent = fmtTime(sim.t);
     $("activity").textContent = snap.activity === "exercise" ? "Exercise" : "Rest";
@@ -166,6 +170,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
             avgTempC: totals.tempC / totals.n,
             avgHumidity: totals.humidity / totals.n,
             movingPercent: Math.round((100 * totals.moving) / totals.n),
+            distanceM: Math.round(totals.distanceM),
           }
         : null,
     }),

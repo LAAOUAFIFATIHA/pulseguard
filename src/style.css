@@ -409,6 +409,54 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
   .person-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
+/* ── Home feed ── */
+.home-hero { display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center;
+  background: linear-gradient(120deg, var(--p-cosmos), var(--p-wine) 55%, var(--p-cordovan)); color: var(--on-dark-1); border: 0; }
+.home-hero h2 { color: #fff; font-size: 20px; }
+.home-hero .muted { color: var(--on-dark-2); }
+.home-hero .btn svg { width: 18px; height: 18px; }
+.feed { display: flex; flex-direction: column; gap: 16px; max-width: 680px; width: 100%; margin: 0 auto; }
+.feed-more { display: flex; justify-content: center; }
+.post { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 18px 12px; display: flex; flex-direction: column; gap: 12px; }
+.post-head { display: flex; align-items: center; gap: 12px; }
+.post-who { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.post-who strong { color: var(--text-h); }
+.post-who .muted { font-size: 13px; display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.ico { display: inline-grid; }
+.ico svg { width: 14px; height: 14px; }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.icon-btn.sm { width: 32px; height: 32px; }
+.icon-btn.sm svg { width: 16px; height: 16px; }
+.post-caption { color: var(--text-h); font-size: 15px; overflow-wrap: anywhere; }
+.post-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stat { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; padding: 10px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); min-width: 0; }
+.stat .ico { grid-row: span 2; width: 30px; height: 30px; border-radius: 9px; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.stat .ico svg { width: 16px; height: 16px; }
+.stat strong { color: var(--text-h); font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat span:last-child { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.post-graph { position: relative; border-radius: var(--radius-sm); background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--border); padding: 6px 0 0; overflow: hidden; }
+.post-chart { display: block; width: 100%; height: 80px; }
+.post-chart .line { fill: none; stroke: var(--p-redwood); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.post-alerts { position: absolute; top: 8px; right: 10px; font-size: 12px; font-weight: 600; color: var(--bad); background: var(--bad-soft); padding: 3px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+.post-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 10px; }
+.like-btn { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-weight: 600; color: var(--muted); background: none; border: 0; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.like-btn svg { width: 20px; height: 20px; }
+.like-btn:hover { background: var(--accent-soft); color: var(--accent); }
+.like-btn[aria-pressed="true"] { color: var(--accent); }
+.like-btn[aria-pressed="true"] svg { fill: currentColor; }
+.sim { font-size: 11px; color: var(--muted); }
+.share-dialog { border: 0; border-radius: var(--radius); padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: var(--shadow-lg); background: var(--surface); color: var(--text); }
+.share-dialog::backdrop { background: color-mix(var(--mix), var(--p-cosmos) 55%, transparent); }
+.share-dialog form { padding: 22px; }
+.share-dialog h2 { font-size: 19px; margin-bottom: 6px; }
+.share-preview { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.share-dialog textarea { margin: 0; }
+.vital-sub { display: block; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .post-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .post { padding: 14px 14px 10px; }
+}
+
 /* ── Profile and settings ───────────────────────────────────────────── */
 .profile-hero { display: flex; align-items: center; gap: 18px; }
 .profile-hero h2 { font-size: 22px; }

@@ -10,6 +10,7 @@
 //   connections/{uidA_uidB}          friend request or friendship
 //   users/{uid}/friends/{friendUid}  accepted friends (mirrored)
 //   runInvites/{teamCode_toUid}      group-run invite between friends
+//   posts/{id}, posts/{id}/likes/{uid} shared runs and likes
 //
 // firestore.rules enforces ownership, team membership, verified email and
 // field validation.
@@ -46,8 +47,11 @@ import {
   query,
   orderBy,
   limit,
+  startAfter,
+  increment,
 } from "firebase/firestore";
 import { app } from "./firebase.js";
+import { createFeedMerger, PAGE } from "./feed.js";
 import { searchName, parseQuery, prefixEnd, mergeResults, connectionId, otherUid, inviteId, SEARCH_LIMIT } from "./social.js";
 
 export const auth = getAuth(app);
@@ -400,6 +404,69 @@ export function watchRunInvites(onChange, onError) {
 
 export const answerRunInvite = (invite, status) => updateDoc(inviteRef(invite.id), { status });
 
+// ── Posts and feed ────────────────────────────────────────────────────────
+const postRef = (id) => doc(db, "posts", id);
+const likeRef = (id) => doc(db, "posts", id, "likes", uid());
+
+/** Shares a run summary. Needs a public card (the post shows its name and handle). */
+export async function sharePost({ caption, visibility, stats, trend }) {
+  if (!card) throw new Error("Create your public card first.");
+  const ref = doc(collection(db, "posts"));
+  await setDoc(ref, {
+    ownerUid: uid(),
+    author: { name: card.displayName, handle: card.handle, avatar: card.avatar },
+    createdAt: serverTimestamp(),
+    caption: caption.trim(),
+    visibility,
+    stats,
+    trend,
+    likeCount: 0,
+  });
+  return ref.id;
+}
+
+export const deletePost = (id) => deleteDoc(postRef(id));
+
+export async function likedByMe(id) {
+  const snap = await getDoc(likeRef(id)).catch(() => null);
+  return !!snap?.exists();
+}
+
+/** Like or unlike; the like and the counter change in one write. */
+export async function setLike(id, like) {
+  const batch = writeBatch(db);
+  if (like) batch.set(likeRef(id), { at: serverTimestamp() });
+  else batch.delete(likeRef(id));
+  batch.update(postRef(id), { likeCount: increment(like ? 1 : -1) });
+  await batch.commit();
+}
+
+const asPost = (d) => ({ id: d.id, ...d.data(), createdAtMs: d.data().createdAt?.toMillis?.() ?? Date.now() });
+
+/** Feed of public posts, my posts and my friends' friends-only posts. */
+export async function openFeed() {
+  const friends = await getDocs(sub("friends")).then((s) => s.docs.map((d) => d.id)).catch(() => []);
+  const posts = collection(db, "posts");
+  const newest = [orderBy("createdAt", "desc"), limit(PAGE)];
+  const sources = {
+    public: () => [where("visibility", "==", "public")],
+    mine: () => [where("ownerUid", "==", uid())],
+  };
+  for (const f of friends) sources["friend:" + f] = () => [where("ownerUid", "==", f), where("visibility", "==", "friends")];
+
+  return createFeedMerger(Object.keys(sources), async (id, cursor) => {
+    const parts = [...sources[id](), ...newest];
+    if (cursor) parts.push(startAfter(cursor));
+    const snap = await getDocs(query(posts, ...parts));
+    return { items: snap.docs.map(asPost), cursor: snap.docs.at(-1) ?? cursor, done: snap.size < PAGE };
+  });
+}
+
+async function deleteMyPosts() {
+  const mine = await getDocs(query(collection(db, "posts"), where("ownerUid", "==", uid()))).catch(() => null);
+  for (const d of mine?.docs ?? []) await deleteDoc(d.ref).catch(() => {});
+}
+
 /** Removes everything friend-related for this user (account deletion). */
 async function deleteSocial() {
   const me = uid();
@@ -476,6 +543,7 @@ export async function deleteAccount(password) {
   await user.getIdToken(true);
 
   await loadCard().catch(() => null);
+  await deleteMyPosts();
   await deleteSocial();
 
   // pending applications to published teams

@@ -47,7 +47,7 @@ service cloud.firestore {
 
     function validWindow(d) {
       return d.keys().hasOnly(['startAt', 'sessionId', 'seconds', 'label', 'activity', 'motion', 'beats',
-                               'avgHr', 'minHr', 'maxHr', 'rrCv', 'avgTempC', 'avgHumidity', 'alerts'])
+                               'avgHr', 'minHr', 'maxHr', 'rrCv', 'avgTempC', 'avgHumidity', 'alerts', 'distanceM'])
         && d.keys().hasAll(['startAt', 'seconds', 'label', 'activity', 'beats', 'alerts'])
         && d.startAt is timestamp
         && (!('sessionId' in d) || shortString(d.sessionId, 40))
@@ -62,7 +62,9 @@ service cloud.firestore {
         && numOrNull(d.get('rrCv', null), 0, 5)
         && numOrNull(d.get('avgTempC', null), 0, 60)
         && numOrNull(d.get('avgHumidity', null), 0, 100)
-        && d.alerts is list && d.alerts.size() <= 10;
+        && d.alerts is list && d.alerts.size() <= 10
+        // 10 s at most 25 km/h is about 70 m
+        && numOrNull(d.get('distanceM', null), 0, 80);
     }
 
     function validEvent(d) {
@@ -127,6 +129,36 @@ service cloud.firestore {
     }
     function handleOk(h) {
       return h is string && h.matches('^[a-z0-9_]{3,20}$');
+    }
+
+    // ── Run posts ────────────────────────────────────────────────────────
+    function myCard() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+    function canSeePost(p) {
+      return verified()
+        && (p.ownerUid == request.auth.uid
+            || p.visibility == 'public'
+            || (p.visibility == 'friends' && areFriends(p.ownerUid, request.auth.uid)));
+    }
+    // Summary numbers only: never raw ECG, location or AI answers.
+    function validStats(st) {
+      return st is map
+        && st.keys().hasOnly(['distanceM', 'seconds', 'avgHr', 'maxHr', 'alerts', 'avgTempC'])
+        && st.distanceM is number && st.distanceM >= 0 && st.distanceM <= 200000
+        && st.seconds is number && st.seconds > 0 && st.seconds <= 86400
+        && numOrNull(st.get('avgHr', null), 0, 300)
+        && numOrNull(st.get('maxHr', null), 0, 300)
+        && st.alerts is int && st.alerts >= 0 && st.alerts <= 1000
+        && numOrNull(st.get('avgTempC', null), 0, 60);
+    }
+    function postFields(d) {
+      return d.keys().hasOnly(['ownerUid', 'author', 'createdAt', 'caption', 'visibility', 'stats', 'trend', 'likeCount'])
+        && d.caption is string && d.caption.size() <= 280
+        && d.visibility in ['public', 'friends', 'private']
+        && validStats(d.stats)
+        && d.trend is list && d.trend.size() <= 60
+        && d.likeCount is int && d.likeCount >= 0;
     }
 
     // A public card: never email, health data, raw ECG or AI answers.
@@ -330,6 +362,47 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
       allow delete: if verified()
         && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+    }
+
+    // ── Run posts and likes ─────────────────────────────────────────────
+    match /posts/{pid} {
+      allow read: if canSeePost(resource.data);
+      // the author block must match the poster's own public card
+      allow create: if verified()
+        && postFields(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.author.keys().hasOnly(['name', 'handle', 'avatar'])
+        && request.resource.data.author.name == myCard().displayName
+        && request.resource.data.author.handle == myCard().handle
+        && request.resource.data.author.avatar == myCard().avatar
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.likeCount == 0;
+      // the owner edits caption and visibility only
+      allow update: if verified() && resource.data.ownerUid == request.auth.uid
+        && postFields(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption', 'visibility']);
+      // anyone who can see the post moves the counter by one, with their own like
+      allow update: if canSeePost(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+        && ((request.resource.data.likeCount == resource.data.likeCount + 1
+             && !exists(/databases/$(database)/documents/posts/$(pid)/likes/$(request.auth.uid))
+             && existsAfter(/databases/$(database)/documents/posts/$(pid)/likes/$(request.auth.uid)))
+          || (request.resource.data.likeCount == resource.data.likeCount - 1
+             && exists(/databases/$(database)/documents/posts/$(pid)/likes/$(request.auth.uid))
+             && !existsAfter(/databases/$(database)/documents/posts/$(pid)/likes/$(request.auth.uid))));
+      allow delete: if verified() && resource.data.ownerUid == request.auth.uid;
+
+      match /likes/{uid} {
+        allow read: if canSeePost(get(/databases/$(database)/documents/posts/$(pid)).data);
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['at'])
+          && request.resource.data.at == request.time
+          && getAfter(/databases/$(database)/documents/posts/$(pid)).data.likeCount
+             == get(/databases/$(database)/documents/posts/$(pid)).data.likeCount + 1;
+        allow delete: if isOwner(uid)
+          && getAfter(/databases/$(database)/documents/posts/$(pid)).data.likeCount
+             == get(/databases/$(database)/documents/posts/$(pid)).data.likeCount - 1;
+      }
     }
   }
 }

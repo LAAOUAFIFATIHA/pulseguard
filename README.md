@@ -22,9 +22,10 @@ PulseGuard is a heart-monitoring and coaching web app for athletes and teams, bu
 
 | Page | What it does |
 | --- | --- |
+| **Home** | Feed of shared runs: public posts, friends-only posts of your friends and your own, newest first, 10 at a time, with likes |
 | **Live monitor** | Press **Start**: live ECG, heart rate, temperature, humidity, movement, alerts, latest coaching tip and the **automatic AI safety check** |
 | **AI coach** | Coaching tip, doctor report, spoken tips, streaming answers with a request log, private symptom notes, on-device model setup |
-| **History** | Saved sessions with a replay player (heart-rate chart, alert zones, play/pause, 1× to 60×) |
+| **History** | Saved sessions with distance, **Share** to the feed, and a replay player (heart-rate chart, alert zones, play/pause, 1× to 60×) |
 | **Team** | Create, discover or join teams, live status of every member, group run with GPS, team alerts |
 | **Friends** | Public card with @handle, search by name or handle, friend requests (accept, decline, cancel, remove), group-run invites |
 | **Profile** | Public card editor, current status, last normal heart rate, personal thresholds, personal details |
@@ -48,6 +49,24 @@ The automatic check can be switched off, and monitoring can be set to start by i
 - With **Group run** switched on, a member's **GPS position** is shared while their monitor runs. Teammates see the distance, the accuracy and a link that opens OpenStreetMap.
 - Group run is **off by default** and resets when the app reloads. Switching it off removes the position.
 - Alerts reach teammates **only while their app is open**. There is no server push.
+
+### Home feed and shared runs
+
+- **History → Share** posts a run summary: distance, time, pace, average and maximum heart rate, alert count and a heart-rate chart. Choose **Everyone**, **Friends** or **Only me**. A post never contains raw ECG, location or AI answers.
+- Distance and pace come from a **simulated** GPS speed (about 9.5 km/h when jogging, 0 at rest), shown on the Live monitor and saved in each 10 s summary.
+- Likes: one per person; the like and the counter change in the same write, and the rules check they match.
+
+### Demo runners for testing (local emulators only)
+
+```bash
+npm run emulators
+```
+
+```bash
+npm run seed:demo
+```
+
+This adds 8 demo runners (handles `demo_…`, marked **Demo** in the feed) with public and friends-only runs, friendships and likes. Add `-- --friend your_handle` to make them friends with your test account so their friends-only runs appear. Sign in as one with `demo.yasmine@example.test` / `Demo-runner-2026`. The script only talks to the local emulators and never to a real project.
 
 ### Friends and group-run invites
 
@@ -152,6 +171,8 @@ For Gemini Nano: 22 GB free disk and a GPU with more than 4 GB VRAM (or 16 GB RA
 | `connections/{uidA_uidB}` | friend request or friendship (ids sorted), requester, status |
 | `users/{uid}/friends/{friendUid}` | accepted friends, written on both sides with the acceptance |
 | `runInvites/{teamCode_toUid}` | group-run invite: from, to, team, status, expiry |
+| `posts/{id}` | shared run: author card, caption, visibility, summary stats, heart-rate trend, like count |
+| `posts/{id}/likes/{uid}` | one like per person |
 
 Raw ECG and accelerometer signals are **never uploaded**. **Download raw signal** saves them to your computer for training.
 
@@ -161,6 +182,7 @@ Raw ECG and accelerometer signals are **never uploaded**. **Download raw signal*
 - [`firestore.rules`](firestore.rules) denies everything by default, requires a verified email and checks keys, types and sizes.
 - A user reads only their own data. Team members see each other's shared card, never email, profile details, raw ECG or AI answers.
 - **Location** is sent only with Group run on, to your team only, and removed when you switch it off. If the app is closed abruptly, the last position stays on your card until it is overwritten or you leave the team.
+- **Post rules:** public posts are readable by signed-in users, friends-only posts only by accepted friends, private posts only by the owner. The author block must match the poster's own public card. Only the owner edits the caption or visibility, or deletes. The like counter moves by one only together with the person's own like.
 - **Friends rules:** only the two people read or write their connection, only the receiver accepts, the connection id must match the two sorted uids, and requests go only to findable people. Friend lists are written only together with an accepted connection. Handles are first come, first served and cannot be taken over. Invites go only to accepted friends, from a team member, once per friend per team, for at most 2 hours.
 - The map link sends the coordinates to openstreetmap.org when a teammate clicks it.
 - Your name is not sent to the AI. Other profile values and readings are sent in prompts. Symptom notes are never stored.
@@ -204,6 +226,10 @@ src/healthcheck.js    automatic safety check
 src/team.js           teams, discover, group run
 src/team-alerts.js    warnings for teammates
 src/friends.js        Friends page, public card, run invites
+src/home.js           Home feed, post cards, Share dialog
+src/feed.js           merges feed sources newest first
+src/run.js            distance and pace
+scripts/seed-demo.mjs demo runners for the emulators
 src/social.js         handles, connections, search helpers
 src/location.js       GPS and distance
 src/history-ui.js     recording and History page
@@ -219,6 +245,7 @@ ml/                   dataset and training scripts
 - All sensor values are simulated. No shirt or ESP32 is connected yet.
 - Alerts need open apps with a connection. A closed or sleeping phone receives nothing, and browsers may pause a background tab.
 - No real payments, no verified coaches, one team per user.
+- Distance, pace and heart rate in posts are simulated. Deleting an account removes its posts but not the likes it left on other people's posts.
 - Friend requests and invites appear only while the app is open (no push notifications). Search is by name or handle prefix only. Firestore indexes in `firestore.indexes.json` must be deployed for search: `firebase deploy --only firestore`.
 - On-device AI does not run on phones.
 
