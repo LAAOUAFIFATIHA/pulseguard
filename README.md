@@ -66,7 +66,7 @@ npm run emulators
 npm run seed:demo
 ```
 
-This adds 8 demo runners (handles `demo_…`, marked **Demo** in the feed) with public and friends-only runs, friendships and likes. Add `-- --friend your_handle` to make them friends with your test account so their friends-only runs appear. Sign in as one with `demo.yasmine@example.test` / `Demo-runner-2026`. The script only talks to the local emulators and never to a real project.
+This adds 8 demo runners (handles `demo_…`, marked **Demo** in the feed) with public and friends-only runs, friendships and likes. Add `-- --friend your_handle` to make them friends with your test account so their friends-only runs appear. A ready test account is included: `test.runner@example.test` / `Demo-runner-2026` (friends with Yasmine, Omar and Salma). Demo runners sign in with `demo.<name>@example.test` and the same password. Open the test app with `VITE_USE_EMULATORS=1 npm run dev`. The script only talks to the local emulators and never to a real project.
 
 ### Friends and group-run invites
 

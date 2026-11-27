@@ -42,7 +42,7 @@ const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 async function reachable(url) {
   try {
-    await fetch(url, { signal: AbortSignal.timeout(2000) });
+    await fetch(url, { signal: AbortSignal.timeout(15000) });
     return true;
   } catch {
     return false;
@@ -187,6 +187,25 @@ function decode(f) {
   return Object.fromEntries(Object.entries(f).map(([k, x]) => [k, v(x)]));
 }
 
+// a ready test account: signed up, verified, with a public card and 3 demo friends
+const TEST_EMAIL = "test.runner@example.test";
+const me = await account(TEST_EMAIL);
+const joined = new Date(now - 2 * 86400000);
+await put(`users/${me}`, { displayName: "Test Runner", age: 24, role: "athlete", restingHr: 60, consentAt: joined, updatedAt: joined });
+await put("handles/test_runner", { uid: me });
+await put(`profiles/${me}`, {
+  displayName: "Test Runner",
+  searchName: "test runner",
+  handle: "test_runner",
+  avatar: "🏃",
+  bio: "Demo account · my test profile",
+  city: "Rabat",
+  runnerLevel: "casual",
+  discoverable: true,
+  updatedAt: joined,
+});
+for (const key of ["yasmine", "omar", "salma"]) await befriend(me, uids[key], joined);
+
 // optional: befriend a test account by its handle
 const at = process.argv.indexOf("--friend");
 if (at > 0) {
@@ -200,4 +219,5 @@ if (at > 0) {
 }
 
 console.log(`Seeded ${RUNNERS.length} demo runners in the emulator (project ${PROJECT}).`);
-console.log(`Sign in as any of them with demo.<name>@example.test and the password ${PASSWORD}, e.g. demo.yasmine@example.test.`);
+console.log(`Your test account: ${TEST_EMAIL} / ${PASSWORD} (friends with Yasmine, Omar and Salma).`);
+console.log(`Demo runners: demo.<name>@example.test / ${PASSWORD}, e.g. demo.karim@example.test.`);
