@@ -28,6 +28,7 @@
         <symbol id="i-temp" viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/></symbol>
         <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.6 6 11a6 6 0 0 1-12 0c0-4.4 6-11 6-11z"/></symbol>
         <symbol id="i-run" viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="1.8"/><path d="M7 21l3.5-6.5L14 17v4M5 12l3.5-3h4.5l3 3.5 3 .5M10.5 14.5 12 9"/></symbol>
+        <symbol id="i-friends" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/></symbol>
         <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></symbol>
       </defs>
     </svg>
@@ -140,6 +141,7 @@
           <a href="#/coach" data-route="coach"><svg><use href="#i-coach" /></svg>AI coach</a>
           <a href="#/history" data-route="history"><svg><use href="#i-history" /></svg>History</a>
           <a href="#/team" data-route="team"><svg><use href="#i-team" /></svg>Team</a>
+          <a href="#/friends" data-route="friends"><svg><use href="#i-friends" /></svg>Friends<span id="friends-badge" class="nav-badge" aria-label="pending"></span></a>
           <a href="#/profile" data-route="profile"><svg><use href="#i-profile" /></svg>Profile</a>
           <a href="#/settings" data-route="settings"><svg><use href="#i-settings" /></svg>Settings</a>
         </nav>
@@ -430,9 +432,63 @@
                 <button type="submit" class="btn btn-primary">Save</button>
               </form>
             </details>
+            <div id="team-invite" class="card invite-card" hidden>
+              <div class="card-head">
+                <div>
+                  <h2>Invite friends</h2>
+                  <p class="muted">An invite lasts 2 hours. Accepting it lets your friend join this team, premium included.</p>
+                </div>
+              </div>
+              <div id="team-invite-list" class="people"></div>
+            </div>
             <div id="team-members" class="member-grid"></div>
           </div>
           <p id="team-status" class="hint" role="status"></p>
+        </section>
+
+        <!-- Friends -->
+        <section class="page" data-page="friends" hidden>
+          <div id="friends-nocard" class="card empty-state" hidden>
+            <h2>Create your public card first</h2>
+            <p class="muted">Pick a handle and an avatar so other runners can find you. Your card never shows your email or health data.</p>
+            <div class="actions"><a href="#/profile" class="btn btn-primary">Create my card</a></div>
+          </div>
+
+          <div id="friends-main">
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Find runners</h2>
+                  <p class="muted">Search by name or @handle. Only runners who chose to be findable appear.</p>
+                </div>
+              </div>
+              <form id="friend-search" class="search-row" role="search">
+                <label for="friend-query" class="sr-only">Name or handle</label>
+                <input id="friend-query" autocomplete="off" placeholder="Name or @handle" />
+                <button type="submit" class="btn btn-primary">Search</button>
+              </form>
+              <div id="search-results" class="people"></div>
+            </div>
+
+            <div id="run-invites-card" class="card invite-card" hidden>
+              <h2>Group-run invites</h2>
+              <ul id="run-invite-list" class="request-list"></ul>
+            </div>
+
+            <div class="grid-2">
+              <div class="card">
+                <div class="card-head"><h2>Requests</h2></div>
+                <div id="incoming-list" class="people"></div>
+                <h3 class="list-title">Sent</h3>
+                <div id="outgoing-list" class="people"></div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h2>Friends <span id="friend-count" class="muted"></span></h2></div>
+                <div id="friend-list" class="people"></div>
+              </div>
+            </div>
+          </div>
+          <p id="friends-status" class="hint" role="status"></p>
         </section>
 
         <!-- Profile -->
@@ -469,6 +525,31 @@
           </div>
 
           <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Public card</h2>
+                <p class="muted">What other runners see when they search for you. No email, no health data.</p>
+              </div>
+            </div>
+            <form id="card-form">
+              <div class="profile">
+                <label>Name shown <input id="card-name" required maxlength="60" /></label>
+                <label>Handle <input id="card-handle" required maxlength="21" autocomplete="off" placeholder="fatiha_runs" /></label>
+                <label>City <input id="card-city" maxlength="40" /></label>
+                <label>Runner level
+                  <select id="card-level"><option value="starting">Just starting</option><option value="casual">Casual runner</option><option value="regular">Regular runner</option><option value="competitive">Competitive runner</option></select>
+                </label>
+              </div>
+              <label class="field">Bio <input id="card-bio" maxlength="160" placeholder="Morning runs by the sea, training for a 10K" /></label>
+              <div class="field"><span class="field-label">Avatar</span><div id="card-avatar" class="emoji-row" role="group" aria-label="Avatar"></div></div>
+              <div class="actions">
+                <button type="submit" class="btn btn-primary">Save card</button>
+                <span id="card-status" class="hint" role="status"></span>
+              </div>
+            </form>
+          </div>
+
+          <div class="card">
             <div class="card-head"><h2>Personal details</h2></div>
             <form id="profile-form">
               <div class="profile">
@@ -500,6 +581,12 @@
             </div>
           </div>
           <div class="card">
+            <div class="card-head"><h2>Privacy</h2></div>
+            <label for="privacy-find" class="field-label">Who can find me</label>
+            <select id="privacy-find"><option value="everyone">Everyone signed in</option><option value="nobody">Nobody</option></select>
+            <p id="privacy-hint" class="hint"></p>
+          </div>
+          <div class="card">
             <div class="card-head"><h2>Account</h2></div>
             <p>Signed in as <strong id="account-email"></strong></p>
             <div class="actions">
@@ -509,7 +596,7 @@
           </div>
           <div class="card danger-zone">
             <div class="card-head"><h2>Delete my data and account</h2></div>
-            <p class="muted">Removes your profile, summaries, alerts and team card, then your account. This cannot be undone.</p>
+            <p class="muted">Removes your profile, public card, handle, friends, invites, summaries, alerts and team card, then your account. This cannot be undone.</p>
             <div class="form narrow">
               <div id="delete-password-row" class="form">
                 <label for="delete-password">Confirm your password</label>

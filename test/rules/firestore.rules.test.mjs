@@ -3,7 +3,7 @@ import { test, before, after, beforeEach } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, serverTimestamp, Timestamp, query, where,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, serverTimestamp, Timestamp, query, where, writeBatch,
 } from "firebase/firestore";
 import { summarize } from "../../src/summary.js";
 
@@ -228,4 +228,176 @@ test("the new alert types can be saved as events", async () => {
   const db = as("alice");
   await assertSucceeds(setDoc(doc(db, "users/alice/events/e2"), event({ type: "highTemp", severity: "high" })));
   await assertSucceeds(setDoc(doc(db, "users/alice/events/e3"), event({ type: "dangerHr", severity: "high" })));
+});
+
+// ── Phase 1: public cards, handles, connections, run invites ───────────────
+const card = (uid, extra = {}) => ({
+  displayName: uid[0].toUpperCase() + uid.slice(1), searchName: uid, handle: uid + "_run", avatar: "🏃",
+  bio: "", city: "Rabat", runnerLevel: "casual", discoverable: true, updatedAt: serverTimestamp(), ...extra,
+});
+const conn = (a, b, requester, status = "pending") => ({ users: [a, b].sort(), requester, status, createdAt: serverTimestamp() });
+
+async function seedCards(extra = {}) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    for (const uid of ["alice", "bob", "carol", "mallory"]) {
+      await setDoc(doc(db, `profiles/${uid}`), { ...card(uid, extra[uid]), updatedAt: t0 });
+      await setDoc(doc(db, `handles/${uid}_run`), { uid });
+    }
+  });
+}
+
+/** alice and bob are friends; alice is in team CODE. */
+async function seedFriends() {
+  await seedCards();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "connections/alice_bob"), { ...conn("alice", "bob", "alice", "accepted"), createdAt: t0, acceptedAt: t0 });
+    await setDoc(doc(db, "users/alice/friends/bob"), { since: t0 });
+    await setDoc(doc(db, "users/bob/friends/alice"), { since: t0 });
+    await setDoc(doc(db, `teams/${CODE}`), { name: "Club", ownerUid: "alice", createdAt: t0 });
+    await setDoc(doc(db, `teams/${CODE}/members/alice`), { ...member("alice"), updatedAt: t0 });
+    await setDoc(doc(db, "users/bob"), { ...profile(), updatedAt: t0, restingHr: 55 });
+  });
+}
+
+function createCard(db, uid, extra = {}) {
+  const batch = writeBatch(db);
+  const c = card(uid, extra);
+  batch.set(doc(db, `profiles/${uid}`), c);
+  batch.set(doc(db, `handles/${c.handle}`), { uid });
+  return batch.commit();
+}
+
+test("a card can be created with a free handle; a taken handle is refused", async () => {
+  await assertSucceeds(createCard(as("alice"), "alice"));
+  await assertFails(createCard(as("eve"), "eve", { handle: "alice_run" }));
+  await assertFails(setDoc(doc(as("eve"), "handles/alice_run"), { uid: "eve" }));
+  await assertFails(createCard(as("eve"), "eve", { handle: "No-Caps" }));
+});
+
+test("a card holds no private fields and keeps searchName in sync", async () => {
+  await assertFails(createCard(as("alice"), "alice", { email: "a@b.c" }));
+  await assertFails(createCard(as("alice"), "alice", { restingHr: 60 }));
+  await assertFails(createCard(as("alice"), "alice", { searchName: "someone else" }));
+  await assertFails(createCard(as("alice", false), "alice"));
+});
+
+test("handles: owners can switch, nobody can steal or release another handle", async () => {
+  await seedCards();
+  const db = as("alice");
+  const batch = writeBatch(db);
+  batch.set(doc(db, "profiles/alice"), card("alice", { handle: "alice_new" }));
+  batch.set(doc(db, "handles/alice_new"), { uid: "alice" });
+  batch.delete(doc(db, "handles/alice_run"));
+  await assertSucceeds(batch.commit());
+  await assertFails(deleteDoc(doc(as("mallory"), "handles/bob_run")));
+  await assertFails(deleteDoc(doc(as("bob"), "handles/bob_run"))); // still on the card
+});
+
+test("search finds only people who chose to be findable", async () => {
+  await seedCards({ carol: { discoverable: false } });
+  const db = as("mallory");
+  await assertSucceeds(getDocs(query(collection(db, "profiles"), where("discoverable", "==", true))));
+  await assertFails(getDocs(collection(db, "profiles")));
+  await assertFails(getDoc(doc(db, "profiles/carol")));
+  await assertSucceeds(getDoc(doc(db, "profiles/bob")));
+});
+
+test("a connection request: only to findable people, never on behalf of others", async () => {
+  await seedCards({ carol: { discoverable: false } });
+  await assertSucceeds(setDoc(doc(as("alice"), "connections/alice_bob"), conn("alice", "bob", "alice")));
+  await assertFails(setDoc(doc(as("alice"), "connections/alice_carol"), conn("alice", "carol", "alice")));
+  await assertFails(setDoc(doc(as("mallory"), "connections/alice_carol"), conn("alice", "carol", "alice")));
+  await assertFails(setDoc(doc(as("alice"), "connections/bob_alice"), { ...conn("alice", "bob", "alice"), users: ["bob", "alice"] }));
+  await assertFails(setDoc(doc(as("alice"), "connections/alice_mallory"), conn("alice", "mallory", "alice", "accepted")));
+});
+
+test("a stranger cannot read or write a connection; nobody accepts their own request", async () => {
+  await seedCards();
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), "connections/alice_bob"), { ...conn("alice", "bob", "alice"), createdAt: t0 })
+  );
+  const accept = { status: "accepted", acceptedAt: serverTimestamp() };
+  await assertFails(getDoc(doc(as("mallory"), "connections/alice_bob")));
+  await assertFails(updateDoc(doc(as("mallory"), "connections/alice_bob"), accept));
+  await assertFails(deleteDoc(doc(as("mallory"), "connections/alice_bob")));
+  await assertFails(updateDoc(doc(as("alice"), "connections/alice_bob"), accept));
+  await assertSucceeds(getDocs(query(collection(as("bob"), "connections"), where("users", "array-contains", "bob"))));
+  await assertSucceeds(updateDoc(doc(as("bob"), "connections/alice_bob"), accept));
+});
+
+test("friend lists are written only with an accepted connection", async () => {
+  await seedCards();
+  await assertFails(setDoc(doc(as("mallory"), "users/mallory/friends/alice"), { since: serverTimestamp() }));
+  await assertFails(setDoc(doc(as("mallory"), "users/alice/friends/mallory"), { since: serverTimestamp() }));
+});
+
+test("a stranger cannot read private data or friend lists, even of a friend", async () => {
+  await seedFriends();
+  await assertFails(getDoc(doc(as("alice"), "users/bob")));
+  await assertFails(getDocs(collection(as("mallory"), "users/bob/friends")));
+  await assertFails(getDocs(collection(as("alice"), "users/bob/windows")));
+  await assertSucceeds(getDoc(doc(as("alice"), "profiles/bob")));
+});
+
+const invite = (from, to, extra = {}) => ({
+  from, fromName: "Alice", to, teamCode: CODE, teamName: "Club", status: "pending",
+  createdAt: serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), ...extra,
+});
+
+test("run invites: friends only, from a member, one per friend per team", async () => {
+  await seedFriends();
+  const alice = as("alice");
+  await assertSucceeds(setDoc(doc(alice, `runInvites/${CODE}_bob`), invite("alice", "bob")));
+  await assertFails(setDoc(doc(alice, `runInvites/${CODE}_bob`), invite("alice", "bob"))); // again
+  await assertFails(setDoc(doc(alice, `runInvites/${CODE}_carol`), invite("alice", "carol"))); // not a friend
+  await assertFails(setDoc(doc(as("bob"), `runInvites/${CODE}_alice`), invite("bob", "alice"))); // not a member
+  await assertFails(setDoc(doc(alice, "runInvites/OTHER234_bob"), invite("alice", "bob"))); // wrong id
+  await assertFails(setDoc(doc(as("mallory"), `runInvites/${CODE}_bob`), invite("alice", "bob")));
+});
+
+test("run invites: limited lifetime, answered by the invited friend, which lets them join", async () => {
+  await seedFriends();
+  await assertFails(setDoc(doc(as("alice"), `runInvites/${CODE}_bob`),
+    invite("alice", "bob", { expiresAt: Timestamp.fromMillis(Date.now() + 5 * 3600 * 1000) })));
+  await assertSucceeds(setDoc(doc(as("alice"), `runInvites/${CODE}_bob`), invite("alice", "bob")));
+  await assertFails(getDoc(doc(as("mallory"), `runInvites/${CODE}_bob`)));
+  await assertFails(updateDoc(doc(as("alice"), `runInvites/${CODE}_bob`), { status: "accepted" }));
+  await assertSucceeds(updateDoc(doc(as("bob"), `runInvites/${CODE}_bob`), { status: "accepted" }));
+  // a premium team: bob still gets in thanks to the accepted invite, carol does not
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `teams/${CODE}`), { tier: "premium" }));
+  await assertSucceeds(setDoc(doc(as("bob"), `teams/${CODE}/members/bob`), member("Bob")));
+  await assertFails(setDoc(doc(as("carol"), `teams/${CODE}/members/carol`), member("Carol")));
+});
+
+test("accepting writes both friend lists in one batch; removing clears them", async () => {
+  await seedCards();
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), "connections/alice_bob"), { ...conn("alice", "bob", "alice"), createdAt: t0 })
+  );
+  const bob = as("bob");
+  const accept = writeBatch(bob);
+  accept.update(doc(bob, "connections/alice_bob"), { status: "accepted", acceptedAt: serverTimestamp() });
+  accept.set(doc(bob, "users/bob/friends/alice"), { since: serverTimestamp() });
+  accept.set(doc(bob, "users/alice/friends/bob"), { since: serverTimestamp() });
+  await assertSucceeds(accept.commit());
+
+  // a friend entry cannot be deleted while the connection still exists
+  await assertFails(deleteDoc(doc(as("alice"), "users/alice/friends/bob")));
+  const alice = as("alice");
+  const remove = writeBatch(alice);
+  remove.delete(doc(alice, "connections/alice_bob"));
+  remove.delete(doc(alice, "users/alice/friends/bob"));
+  remove.delete(doc(alice, "users/bob/friends/alice"));
+  await assertSucceeds(remove.commit());
+});
+
+test("a pending request lets each side see the other card, even when not findable", async () => {
+  await seedCards({ bob: { discoverable: false } });
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), "connections/alice_bob"), { ...conn("alice", "bob", "bob"), createdAt: t0 })
+  );
+  await assertSucceeds(getDoc(doc(as("alice"), "profiles/bob")));
+  await assertFails(getDoc(doc(as("carol"), "profiles/bob")));
 });

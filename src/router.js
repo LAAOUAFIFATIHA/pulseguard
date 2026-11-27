@@ -4,6 +4,7 @@ const ROUTES = {
   coach: ["AI coach", "Hybrid AI: Gemini Nano on device, Gemini in the cloud"],
   history: ["History", "Your saved sessions, ready to replay"],
   team: ["Team", "Training partners who chose to share with each other"],
+  friends: ["Friends", "Find runners, manage requests and invite friends to run"],
   profile: ["Profile", "Your status, thresholds and personal details"],
   settings: ["Settings", "Data, privacy and account"],
 };

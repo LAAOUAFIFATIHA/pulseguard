@@ -5,6 +5,11 @@
 //   users/{uid}/events/{id}          anomaly events
 //   teams/{code}                     team name and owner
 //   teams/{code}/members/{uid}       what a member shares with the team
+//   profiles/{uid}                   public card (no health data)
+//   handles/{handle}                 reserved @handle -> uid
+//   connections/{uidA_uidB}          friend request or friendship
+//   users/{uid}/friends/{friendUid}  accepted friends (mirrored)
+//   runInvites/{teamCode_toUid}      group-run invite between friends
 //
 // firestore.rules enforces ownership, team membership, verified email and
 // field validation.
@@ -43,6 +48,7 @@ import {
   limit,
 } from "firebase/firestore";
 import { app } from "./firebase.js";
+import { searchName, parseQuery, prefixEnd, mergeResults, connectionId, otherUid, inviteId, SEARCH_LIMIT } from "./social.js";
 
 export const auth = getAuth(app);
 const db = initializeFirestore(app, {
@@ -238,6 +244,179 @@ export function watchMembers(code, onChange, onError) {
 
 export const removeMember = (code, memberUid) => deleteDoc(memberRef(code, memberUid));
 
+// ── Friends: public card, search, connections, run invites ──────────────
+const profileRef = (id = uid()) => doc(db, "profiles", id);
+const handleRef = (h) => doc(db, "handles", h);
+const connRef = (id) => doc(db, "connections", id);
+const friendRef = (owner, friend) => doc(db, "users", owner, "friends", friend);
+const inviteRef = (id) => doc(db, "runInvites", id);
+
+let card = null;
+export const getCard = () => card;
+
+export async function loadCard() {
+  const snap = await getDoc(profileRef());
+  card = snap.exists() ? snap.data() : null;
+  return card;
+}
+
+/** uid that owns a handle, or null when it is free. */
+export async function handleOwner(handle) {
+  const snap = await getDoc(handleRef(handle));
+  return snap.exists() ? snap.data().uid : null;
+}
+
+/** Creates or updates the public card; a new handle is reserved in the same write. */
+export async function saveCard(input) {
+  const next = {
+    displayName: input.displayName.trim(),
+    searchName: searchName(input.displayName),
+    handle: input.handle,
+    avatar: input.avatar,
+    bio: (input.bio ?? "").trim(),
+    city: (input.city ?? "").trim(),
+    runnerLevel: input.runnerLevel,
+    discoverable: !!input.discoverable,
+    updatedAt: serverTimestamp(),
+  };
+  const batch = writeBatch(db);
+  batch.set(profileRef(), next);
+  if (card?.handle !== next.handle) {
+    batch.set(handleRef(next.handle), { uid: uid() });
+    if (card?.handle) batch.delete(handleRef(card.handle));
+  }
+  await batch.commit();
+  card = next;
+}
+
+/** Findable cards whose name or handle starts with the text. */
+export async function searchCards(text) {
+  const { q, handleOnly } = parseQuery(text);
+  if (!q) return [];
+  const fields = handleOnly ? ["handle"] : ["searchName", "handle"];
+  const lists = await Promise.all(
+    fields.map(async (field) => {
+      const snap = await getDocs(
+        query(
+          collection(db, "profiles"),
+          where("discoverable", "==", true),
+          where(field, ">=", q),
+          where(field, "<=", prefixEnd(q)),
+          orderBy(field),
+          limit(SEARCH_LIMIT)
+        )
+      );
+      return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    })
+  );
+  return mergeResults(lists, uid());
+}
+
+/** Someone else's card, or null when hidden from me. */
+export async function cardOf(id) {
+  try {
+    const snap = await getDoc(profileRef(id));
+    return snap.exists() ? { uid: id, ...snap.data() } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function watchConnections(onChange, onError) {
+  return onSnapshot(
+    query(collection(db, "connections"), where("users", "array-contains", uid())),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+export const sendFriendRequest = (other) =>
+  setDoc(connRef(connectionId(uid(), other)), {
+    users: [uid(), other].sort(),
+    requester: uid(),
+    status: "pending",
+    createdAt: serverTimestamp(),
+  });
+
+export async function acceptFriend(conn) {
+  const other = otherUid(conn, uid());
+  const batch = writeBatch(db);
+  batch.update(connRef(conn.id), { status: "accepted", acceptedAt: serverTimestamp() });
+  batch.set(friendRef(uid(), other), { since: serverTimestamp() });
+  batch.set(friendRef(other, uid()), { since: serverTimestamp() });
+  await batch.commit();
+}
+
+/** Cancel, decline or remove a friend. */
+export async function removeConnection(conn) {
+  const other = otherUid(conn, uid());
+  const batch = writeBatch(db);
+  batch.delete(connRef(conn.id));
+  if (conn.status === "accepted") {
+    batch.delete(friendRef(uid(), other));
+    batch.delete(friendRef(other, uid()));
+  }
+  await batch.commit();
+}
+
+const INVITE_MS = 115 * 60 * 1000; // a little under the 2 h allowed, for clock drift
+
+/** Invite a friend to my current team; replaces an old answered or expired invite. */
+export async function sendRunInvite(toUid) {
+  const code = profile?.teamId;
+  if (!code) throw new Error("Join or create a team first.");
+  const ref = inviteRef(inviteId(code, toUid));
+  const old = await getDoc(ref).catch(() => null);
+  if (old?.exists()) await deleteDoc(ref);
+  const team = await getTeam(code);
+  await setDoc(ref, {
+    from: uid(),
+    fromName: card?.displayName ?? profile.displayName,
+    to: toUid,
+    teamCode: code,
+    teamName: team?.name ?? "Team",
+    status: "pending",
+    createdAt: serverTimestamp(),
+    expiresAt: Timestamp.fromMillis(Date.now() + INVITE_MS),
+  });
+}
+
+/** The invite I sent to this friend for my team, or null. */
+export async function sentInvite(toUid) {
+  const code = profile?.teamId;
+  if (!code) return null;
+  const snap = await getDoc(inviteRef(inviteId(code, toUid))).catch(() => null);
+  return snap?.exists() ? { ...snap.data(), expiresAtMs: snap.data().expiresAt.toMillis() } : null;
+}
+
+export function watchRunInvites(onChange, onError) {
+  return onSnapshot(
+    query(collection(db, "runInvites"), where("to", "==", uid())),
+    (snap) =>
+      onChange(snap.docs.map((d) => ({ id: d.id, ...d.data(), expiresAtMs: d.data().expiresAt?.toMillis?.() ?? 0 }))),
+    onError
+  );
+}
+
+export const answerRunInvite = (invite, status) => updateDoc(inviteRef(invite.id), { status });
+
+/** Removes everything friend-related for this user (account deletion). */
+async function deleteSocial() {
+  const me = uid();
+  const conns = await getDocs(query(collection(db, "connections"), where("users", "array-contains", me)));
+  for (const d of conns.docs) await removeConnection({ id: d.id, ...d.data() }).catch(() => {});
+  for (const field of ["from", "to"]) {
+    const invites = await getDocs(query(collection(db, "runInvites"), where(field, "==", me))).catch(() => null);
+    for (const d of invites?.docs ?? []) await deleteDoc(d.ref).catch(() => {});
+  }
+  if (card?.handle) {
+    const batch = writeBatch(db);
+    batch.delete(profileRef());
+    batch.delete(handleRef(card.handle));
+    await batch.commit().catch(() => {});
+  }
+}
+
 // ── Export, sign out, delete ──────────────────────────────────────────────
 const plain = (data) =>
   Object.fromEntries(
@@ -248,11 +427,19 @@ export async function exportAll() {
   const [me, windows, events] = await Promise.all([getDoc(userRef()), getDocs(sub("windows")), getDocs(sub("events"))]);
   const code = me.data()?.teamId;
   const shared = code ? await getDoc(memberRef(code)).catch(() => null) : null;
+  const [pub, friends, conns] = await Promise.all([
+    getDoc(profileRef()).catch(() => null),
+    getDocs(sub("friends")).catch(() => null),
+    getDocs(query(collection(db, "connections"), where("users", "array-contains", uid()))).catch(() => null),
+  ]);
   return {
     exportedAt: new Date().toISOString(),
     email: auth.currentUser.email,
     profile: me.exists() ? plain(me.data()) : null,
     sharedWithTeam: shared?.exists() ? plain(shared.data()) : null,
+    publicCard: pub?.exists() ? plain(pub.data()) : null,
+    friends: friends?.docs.map((d) => d.id) ?? [],
+    connections: conns?.docs.map((d) => ({ id: d.id, ...plain(d.data()) })) ?? [],
     windows: windows.docs.map((d) => plain(d.data())),
     events: events.docs.map((d) => plain(d.data())),
   };
@@ -287,6 +474,9 @@ export async function deleteAccount(password) {
     await reauthenticateWithPopup(user, new GoogleAuthProvider());
   }
   await user.getIdToken(true);
+
+  await loadCard().catch(() => null);
+  await deleteSocial();
 
   // pending applications to published teams
   for (const t of await listPublicTeams().catch(() => [])) {

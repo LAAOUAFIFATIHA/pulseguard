@@ -26,7 +26,8 @@ PulseGuard is a heart-monitoring and coaching web app for athletes and teams, bu
 | **AI coach** | Coaching tip, doctor report, spoken tips, streaming answers with a request log, private symptom notes, on-device model setup |
 | **History** | Saved sessions with a replay player (heart-rate chart, alert zones, play/pause, 1× to 60×) |
 | **Team** | Create, discover or join teams, live status of every member, group run with GPS, team alerts |
-| **Profile** | Current status, last normal heart rate, personal thresholds, personal details |
+| **Friends** | Public card with @handle, search by name or handle, friend requests (accept, decline, cancel, remove), group-run invites |
+| **Profile** | Public card editor, current status, last normal heart rate, personal thresholds, personal details |
 | **Settings** | Data collection, raw-signal download, export, sign out, delete account |
 
 Accounts use email/password (with email verification) or Google. Sign out is always available.
@@ -47,6 +48,13 @@ The automatic check can be switched off, and monitoring can be set to start by i
 - With **Group run** switched on, a member's **GPS position** is shared while their monitor runs. Teammates see the distance, the accuracy and a link that opens OpenStreetMap.
 - Group run is **off by default** and resets when the app reloads. Switching it off removes the position.
 - Alerts reach teammates **only while their app is open**. There is no server push.
+
+### Friends and group-run invites
+
+- Create a **public card** on the Profile page: name, unique **@handle** (3 to 20 characters: `a-z 0-9 _`), emoji avatar, city, runner level and bio. It never contains email, health data, raw ECG or AI answers.
+- **Search** by name or @handle prefix (10 results). **Settings → Who can find me** hides you from search (Everyone / Nobody). Friends and pending requests still see your card.
+- **Requests**: send, accept, decline, cancel, remove. A red badge in the menu counts open requests and invites.
+- **Group-run invites**: from the Team page, invite accepted friends. An invite lasts 2 hours. Accepting it joins that team, premium included, and leaves your current team (one team at a time). Location is still shared only with **Group run** on.
 
 ### Discover and premium teams
 
@@ -139,6 +147,11 @@ For Gemini Nano: 22 GB free disk and a GPU with more than 4 GB VRAM (or 16 GB RA
 | `teams/{code}` | name, owner, directory settings |
 | `teams/{code}/members/{uid}` | shared status, trend, last session, urgent flag, optional position |
 | `teams/{code}/requests/{uid}` | applications to a premium team |
+| `profiles/{uid}` | public card: name, handle, avatar, city, level, bio, findable flag |
+| `handles/{handle}` | reserved handle → owner uid |
+| `connections/{uidA_uidB}` | friend request or friendship (ids sorted), requester, status |
+| `users/{uid}/friends/{friendUid}` | accepted friends, written on both sides with the acceptance |
+| `runInvites/{teamCode_toUid}` | group-run invite: from, to, team, status, expiry |
 
 Raw ECG and accelerometer signals are **never uploaded**. **Download raw signal** saves them to your computer for training.
 
@@ -148,6 +161,7 @@ Raw ECG and accelerometer signals are **never uploaded**. **Download raw signal*
 - [`firestore.rules`](firestore.rules) denies everything by default, requires a verified email and checks keys, types and sizes.
 - A user reads only their own data. Team members see each other's shared card, never email, profile details, raw ECG or AI answers.
 - **Location** is sent only with Group run on, to your team only, and removed when you switch it off. If the app is closed abruptly, the last position stays on your card until it is overwritten or you leave the team.
+- **Friends rules:** only the two people read or write their connection, only the receiver accepts, the connection id must match the two sorted uids, and requests go only to findable people. Friend lists are written only together with an accepted connection. Handles are first come, first served and cannot be taken over. Invites go only to accepted friends, from a team member, once per friend per team, for at most 2 hours.
 - The map link sends the coordinates to openstreetmap.org when a teammate clicks it.
 - Your name is not sent to the AI. Other profile values and readings are sent in prompts. Symptom notes are never stored.
 - App Check protects AI Logic. Signing out clears the offline copy. Security headers are set in `firebase.json` (no Content-Security-Policy yet).
@@ -189,6 +203,8 @@ src/monitor.js        live loop (signals, rules, chart)
 src/healthcheck.js    automatic safety check
 src/team.js           teams, discover, group run
 src/team-alerts.js    warnings for teammates
+src/friends.js        Friends page, public card, run invites
+src/social.js         handles, connections, search helpers
 src/location.js       GPS and distance
 src/history-ui.js     recording and History page
 src/replay.js         session replay
@@ -203,6 +219,7 @@ ml/                   dataset and training scripts
 - All sensor values are simulated. No shirt or ESP32 is connected yet.
 - Alerts need open apps with a connection. A closed or sleeping phone receives nothing, and browsers may pause a background tab.
 - No real payments, no verified coaches, one team per user.
+- Friend requests and invites appear only while the app is open (no push notifications). Search is by name or handle prefix only. Firestore indexes in `firestore.indexes.json` must be deployed for search: `firebase deploy --only firestore`.
 - On-device AI does not run on phones.
 
 ## License

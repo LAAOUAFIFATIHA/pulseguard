@@ -10,6 +10,7 @@ import { initTeam } from "./team.js";
 import { initSettings } from "./settings.js";
 import { buildCoachPrompt, buildReportPrompt, buildCheckPrompt } from "./prompts.js";
 import { initTeamAlerts } from "./team-alerts.js";
+import { initFriends } from "./friends.js";
 import { createScheduler, ruleLevel, parseVerdict, worst } from "./healthcheck.js";
 
 const $ = (id) => document.getElementById(id);
@@ -202,9 +203,16 @@ const team = initTeam({
   onTeamChange: () => {
     profilePage.renderIdentity();
     teamAlerts.restart();
+    friends.renderTeamInvites();
   },
 });
 initSettings();
+const friends = initFriends({
+  onTeamChange: () => {
+    profilePage.renderIdentity();
+    teamAlerts.restart();
+  },
+});
 
 // ── Automatic safety check ─────────────────────────────────────────────────
 const VERDICT = { ok: "No warning signs", watch: "Take care", danger: "Stop and check" };
@@ -339,8 +347,12 @@ initRouter({
     if (current === "history" && route !== "history") history.leavePage();
     current = route;
     if (route === "history") history.enterPage();
-    if (route === "team") team.enter();
-    if (route === "profile") profilePage.enter();
+    if (route === "team") team.enter().then(() => friends.renderTeamInvites());
+    if (route === "profile") {
+      profilePage.enter();
+      friends.enterProfile();
+    }
+    if (route === "friends") friends.enter();
   },
 });
 
