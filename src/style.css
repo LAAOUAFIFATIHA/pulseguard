@@ -214,3 +214,5 @@ details.card[open] > summary::before { content: "▾ "; }
 .password { display: flex; gap: 6px; }
 .check input { flex: none; }
 #auth-message, #onboard-message, #verify-message { min-height: 1.5em; font-size: 14px; color: var(--accent); }
+
+.account-bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; font-size: 13px; overflow-wrap: anywhere; }

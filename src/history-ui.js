@@ -97,7 +97,8 @@ export function createHistory({ sampleRate }) {
   const note = (msg) => ($("settings-status").textContent = msg);
   $("account-email").textContent = auth.currentUser.email;
   $("delete-password-row").hidden = !usesPassword();
-  $("sign-out").onclick = () => signOutAndClear().catch((err) => note(err.message));
+  $("header-email").textContent = auth.currentUser.email;
+  $("sign-out").onclick = $("header-signout").onclick = () => signOutAndClear().catch((err) => note(err.message));
   $("export-data").onclick = async () => {
     try {
       note("Preparing your data…");
