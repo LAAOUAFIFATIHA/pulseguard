@@ -99,8 +99,8 @@ export function createReplay() {
 
     ctx.clearRect(0, 0, width, height);
     ctx.font = "11px system-ui, sans-serif";
-    ctx.fillStyle = color("--muted", "#3f7e77");
-    ctx.strokeStyle = color("--border", "#dbe7e5");
+    ctx.fillStyle = color("--muted", "#9a5862");
+    ctx.strokeStyle = color("--border", "#f3d6d7");
     ctx.lineWidth = 1;
     for (let bpm = lo; bpm <= hi; bpm += (hi - lo) / 4) {
       ctx.beginPath();
@@ -120,7 +120,7 @@ export function createReplay() {
     });
 
     // heart rate: one step per 10 s block (each value is a block average)
-    ctx.strokeStyle = color("--accent", "#d62839");
+    ctx.strokeStyle = color("--accent", "#b23a48");
     ctx.lineWidth = 2;
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -135,7 +135,7 @@ export function createReplay() {
     ctx.stroke();
 
     // playhead
-    ctx.strokeStyle = color("--text-h", "#0f5e55");
+    ctx.strokeStyle = color("--text-h", "#461220");
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(x(t), pad.t);

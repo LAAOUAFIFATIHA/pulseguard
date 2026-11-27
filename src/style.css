@@ -1,51 +1,57 @@
 /* PulseGuard design system
-   Palette (only these five colours; shades are mixes with white or black):
-   wine #9B1C2D · red #D62839 · rose #C73B59 · deep teal #0F5E55 · teal #2DB6A3 */
+   Main palette: light coral #D77A7D · redwood #B23A48 · cordovan #8C2F39 · wine #69212D · chocolate cosmos #461220
+   Accent (only for "normal / OK"): teal #2DB6A3, deep teal #0F5E55.
+   Lighter and darker shades are mixes of these colours with white or black. */
 :root {
-  --p-wine: #9b1c2d;
-  --p-red: #d62839;
-  --p-rose: #c73b59;
-  --p-deep: #0f5e55;
+  --p-coral: #d77a7d;
+  --p-redwood: #b23a48;
+  --p-cordovan: #8c2f39;
+  --p-wine: #69212d;
+  --p-cosmos: #461220;
   --p-teal: #2db6a3;
+  --p-deep: #0f5e55;
+  /* older names used across the stylesheet */
+  --p-red: var(--p-redwood);
+  --p-rose: var(--p-coral);
   --mix: in srgb;
 
-  --bg: color-mix(var(--mix), var(--p-deep) 5%, #fff);
+  --bg: color-mix(var(--mix), var(--p-coral) 7%, #fff);
   --surface: #fff;
-  --surface-2: color-mix(var(--mix), var(--p-deep) 3%, #fff);
-  --border: color-mix(var(--mix), var(--p-deep) 14%, #fff);
-  --text: color-mix(var(--mix), var(--p-deep) 70%, #000);
-  --text-h: color-mix(var(--mix), var(--p-deep) 45%, #000);
-  --muted: color-mix(var(--mix), var(--p-deep) 82%, #fff);
-  --accent: var(--p-red);
-  --accent-600: var(--p-wine);
-  --accent-soft: color-mix(var(--mix), var(--p-red) 12%, #fff);
+  --surface-2: color-mix(var(--mix), var(--p-coral) 5%, #fff);
+  --border: color-mix(var(--mix), var(--p-coral) 24%, #fff);
+  --text: color-mix(var(--mix), var(--p-cosmos) 82%, #fff);
+  --text-h: var(--p-cosmos);
+  --muted: color-mix(var(--mix), var(--p-wine) 72%, #fff);
+  --accent: var(--p-redwood);
+  --accent-600: var(--p-cordovan);
+  --accent-soft: color-mix(var(--mix), var(--p-coral) 18%, #fff);
   --ok: var(--p-deep);
-  --ok-soft: color-mix(var(--mix), var(--p-teal) 18%, #fff);
-  --warn: var(--p-rose);
-  --warn-soft: color-mix(var(--mix), var(--p-rose) 13%, #fff);
-  --bad: var(--p-red);
-  --bad-soft: color-mix(var(--mix), var(--p-red) 11%, #fff);
+  --ok-soft: color-mix(var(--mix), var(--p-teal) 16%, #fff);
+  --warn: var(--p-cordovan);
+  --warn-soft: color-mix(var(--mix), var(--p-coral) 20%, #fff);
+  --bad: var(--p-redwood);
+  --bad-soft: color-mix(var(--mix), var(--p-redwood) 13%, #fff);
   --info: var(--p-wine);
-  --info-soft: color-mix(var(--mix), var(--p-rose) 13%, #fff);
-  --neutral-soft: color-mix(var(--mix), var(--p-deep) 8%, #fff);
-  --side: color-mix(var(--mix), var(--p-deep) 62%, #000);
-  --side-2: color-mix(var(--mix), var(--p-deep) 80%, #000);
-  --side-text: color-mix(var(--mix), var(--p-teal) 22%, #fff);
-  --deep: color-mix(var(--mix), var(--p-deep) 28%, #000);
-  --deep-line: color-mix(var(--mix), var(--p-deep) 55%, #000);
-  --deep-grid: color-mix(var(--mix), var(--p-deep) 50%, #000);
-  --on-dark-0: color-mix(var(--mix), var(--p-teal) 10%, #fff);
-  --on-dark-1: color-mix(var(--mix), var(--p-teal) 22%, #fff);
-  --on-dark-2: color-mix(var(--mix), var(--p-teal) 45%, #fff);
-  --on-dark-dim: color-mix(var(--mix), var(--p-teal) 75%, #000);
-  --soft-red: color-mix(var(--mix), var(--p-red) 60%, #fff);
-  --grid: color-mix(var(--mix), var(--p-rose) 22%, #fff);
-  --trace: var(--p-wine);
-  --band: color-mix(var(--mix), var(--p-red) 13%, transparent);
+  --info-soft: color-mix(var(--mix), var(--p-coral) 22%, #fff);
+  --neutral-soft: color-mix(var(--mix), var(--p-coral) 12%, #fff);
+  --side: var(--p-cosmos);
+  --side-2: var(--p-wine);
+  --side-text: color-mix(var(--mix), var(--p-coral) 30%, #fff);
+  --deep: color-mix(var(--mix), var(--p-cosmos) 62%, #000);
+  --deep-line: color-mix(var(--mix), var(--p-cosmos) 92%, #000);
+  --deep-grid: color-mix(var(--mix), var(--p-wine) 70%, #000);
+  --on-dark-0: color-mix(var(--mix), var(--p-coral) 10%, #fff);
+  --on-dark-1: color-mix(var(--mix), var(--p-coral) 25%, #fff);
+  --on-dark-2: color-mix(var(--mix), var(--p-coral) 50%, #fff);
+  --on-dark-dim: color-mix(var(--mix), var(--p-coral) 70%, #000);
+  --soft-red: var(--p-coral);
+  --grid: color-mix(var(--mix), var(--p-coral) 28%, #fff);
+  --trace: var(--p-cordovan);
+  --band: color-mix(var(--mix), var(--p-redwood) 14%, transparent);
   --radius: 16px;
   --radius-sm: 10px;
-  --shadow: 0 1px 2px color-mix(var(--mix), var(--deep) 6%, transparent), 0 8px 24px -12px color-mix(var(--mix), var(--deep) 18%, transparent);
-  --shadow-lg: 0 2px 4px color-mix(var(--mix), var(--deep) 7%, transparent), 0 18px 40px -18px color-mix(var(--mix), var(--deep) 38%, transparent);
+  --shadow: 0 1px 2px color-mix(var(--mix), var(--p-cosmos) 6%, transparent), 0 8px 24px -12px color-mix(var(--mix), var(--p-cosmos) 20%, transparent);
+  --shadow-lg: 0 2px 4px color-mix(var(--mix), var(--p-cosmos) 7%, transparent), 0 18px 40px -18px color-mix(var(--mix), var(--p-cosmos) 42%, transparent);
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Consolas, monospace;
   color-scheme: light;
@@ -57,28 +63,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: color-mix(var(--mix), var(--p-deep) 22%, #000);
-    --surface: color-mix(var(--mix), var(--p-deep) 34%, #000);
-    --surface-2: color-mix(var(--mix), var(--p-deep) 40%, #000);
-    --border: color-mix(var(--mix), var(--p-deep) 62%, #000);
-    --text: color-mix(var(--mix), var(--p-teal) 40%, #fff);
+    --bg: color-mix(var(--mix), var(--p-cosmos) 55%, #000);
+    --surface: color-mix(var(--mix), var(--p-cosmos) 78%, #000);
+    --surface-2: color-mix(var(--mix), var(--p-cosmos) 88%, #000);
+    --border: color-mix(var(--mix), var(--p-wine) 85%, #000);
+    --text: color-mix(var(--mix), var(--p-coral) 35%, #fff);
     --text-h: #fff;
-    --muted: color-mix(var(--mix), var(--p-teal) 75%, #fff);
+    --muted: color-mix(var(--mix), var(--p-coral) 70%, #fff);
     --ok: var(--p-teal);
-    --info: color-mix(var(--mix), var(--p-red) 55%, #fff);
-    --warn: color-mix(var(--mix), var(--p-rose) 65%, #fff);
-    --bad: color-mix(var(--mix), var(--p-red) 70%, #fff);
-    --accent-soft: color-mix(var(--mix), var(--p-red) 18%, transparent);
-    --ok-soft: color-mix(var(--mix), var(--p-teal) 18%, transparent);
-    --warn-soft: color-mix(var(--mix), var(--p-rose) 20%, transparent);
-    --bad-soft: color-mix(var(--mix), var(--p-red) 20%, transparent);
-    --info-soft: color-mix(var(--mix), var(--p-rose) 20%, transparent);
-    --neutral-soft: color-mix(var(--mix), var(--p-deep) 50%, #000);
-    --side: color-mix(var(--mix), var(--p-deep) 18%, #000);
-    --side-2: color-mix(var(--mix), var(--p-deep) 35%, #000);
-    --grid: color-mix(var(--mix), var(--p-wine) 35%, #000);
-    --trace: var(--soft-red);
-    --band: color-mix(var(--mix), var(--p-red) 16%, transparent);
+    --info: var(--p-coral);
+    --warn: color-mix(var(--mix), var(--p-coral) 70%, #fff);
+    --bad: color-mix(var(--mix), var(--p-coral) 85%, #fff);
+    --accent-soft: color-mix(var(--mix), var(--p-redwood) 22%, transparent);
+    --ok-soft: color-mix(var(--mix), var(--p-teal) 16%, transparent);
+    --warn-soft: color-mix(var(--mix), var(--p-coral) 20%, transparent);
+    --bad-soft: color-mix(var(--mix), var(--p-redwood) 28%, transparent);
+    --info-soft: color-mix(var(--mix), var(--p-coral) 18%, transparent);
+    --neutral-soft: color-mix(var(--mix), var(--p-wine) 55%, #000);
+    --side: color-mix(var(--mix), var(--p-cosmos) 45%, #000);
+    --side-2: color-mix(var(--mix), var(--p-cosmos) 75%, #000);
+    --grid: color-mix(var(--mix), var(--p-wine) 60%, #000);
+    --trace: var(--p-coral);
+    --band: color-mix(var(--mix), var(--p-coral) 16%, transparent);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.45);
     --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 18px 40px -16px rgba(0, 0, 0, 0.6);
     color-scheme: dark;
@@ -209,8 +215,8 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent);
 .nav a[aria-current="page"] { background: color-mix(var(--mix), var(--p-red) 16%, transparent); color: #fff; box-shadow: inset 3px 0 0 var(--accent); }
 .nav a[aria-current="page"] svg { color: var(--soft-red); }
 .nav-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--on-dark-dim); padding: 0 12px 6px; }
-.nav-live { display: none; margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--p-teal); align-items: center; gap: 5px; }
-.nav-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--p-teal); animation: blink 1.4s ease-in-out infinite; }
+.nav-live { display: none; margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--p-coral); align-items: center; gap: 5px; }
+.nav-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--p-coral); animation: blink 1.4s ease-in-out infinite; }
 body[data-live="true"] .nav-live { display: inline-flex; }
 @keyframes blink { 50% { opacity: 0.3; } }
 .user-card { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
@@ -273,7 +279,7 @@ body[data-live="true"] .nav-live { display: inline-flex; }
 
 /* ── ECG and charts ─────────────────────────────────────────────────── */
 canvas.ecg { width: 100%; height: 220px; display: block; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
-canvas.ecg-dark { --grid: var(--deep-grid); --trace: var(--p-teal); background: var(--deep); border-color: var(--deep); height: 180px; }
+canvas.ecg-dark { --grid: var(--deep-grid); --trace: var(--p-coral); background: var(--deep); border-color: var(--deep); height: 180px; }
 canvas.trend { width: 100%; height: 170px; display: block; }
 
 .alert-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -442,15 +448,18 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 
 .live-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; align-items: stretch; }
 .monitor-panel {
-  background: radial-gradient(120% 80% at 100% 0%, color-mix(var(--mix), var(--p-teal) 7%, transparent), transparent 55%), var(--deep);
+  background: radial-gradient(120% 80% at 100% 0%, color-mix(var(--mix), var(--p-redwood) 18%, transparent), transparent 55%), var(--deep);
   border-radius: var(--radius); padding: 20px; color: var(--on-dark-1); box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; gap: 14px; min-width: 0; border: 1px solid var(--deep-line);
 }
 .monitor-panel .eyebrow { color: var(--on-dark-dim); }
 .monitor-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .hr-block { --tone: var(--p-teal); }
-.hr-block[data-state="warn"] { --tone: color-mix(var(--mix), var(--p-rose) 65%, #fff); }
-.hr-block[data-state="danger"] { --tone: color-mix(var(--mix), var(--p-red) 70%, #fff); }
+.hr-block[data-state="warn"] { --tone: color-mix(var(--mix), var(--p-coral) 70%, #fff); }
+.hr-block[data-state="danger"] { --tone: color-mix(var(--mix), var(--p-coral) 55%, #fff); }
+.hr-block[data-state="danger"] #hr-value { animation: alarm 1.2s ease-in-out infinite; }
+@keyframes alarm { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .hr-block[data-state="danger"] #hr-value, .check-card[data-state="danger"] .check-icon, .nav-live::before, .rec i { animation: none !important; } }
 .hr-block .hr-line { gap: 10px; margin: 4px 0 2px; }
 .hr-block .heart { width: 30px; height: 30px; color: var(--tone); filter: drop-shadow(0 0 10px var(--tone)); }
 .hr-block #hr-value { color: var(--tone); text-shadow: 0 0 28px color-mix(in srgb, var(--tone) 45%, transparent); }
@@ -464,7 +473,7 @@ body[data-live="true"] .rec i { background: var(--p-red); box-shadow: 0 0 8px va
 canvas.ecg-live { height: 240px; border-radius: var(--radius-sm); border: 1px solid var(--deep-line); }
 .monitor-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .select-dark { background: rgba(255, 255, 255, 0.06) !important; color: var(--on-dark-0) !important; border-color: rgba(255, 255, 255, 0.14) !important; flex: 1 1 220px; }
-.select-dark option { color: var(--p-deep); }
+.select-dark option { color: var(--p-cosmos); }
 
 .vitals-col { display: flex; flex-direction: column; gap: 12px; }
 .vital {
