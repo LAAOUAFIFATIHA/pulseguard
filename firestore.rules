@@ -513,6 +513,81 @@ service cloud.firestore {
       allow delete: if verified() && request.auth.uid in resource.data.users;
     }
 
+    // ── Friend challenges ────────────────────────────────────────────────
+    // users[0] invites users[1]; only friends, never a blocked pair.
+    function validChallenge(d) {
+      return d.keys().hasOnly(['users', 'from', 'type', 'target', 'days', 'rated', 'status', 'names',
+                               'createdAt', 'acceptedAt', 'deadline', 'winner', 'finishedAt'])
+        && d.users is list && d.users.size() == 2 && d.users[0] != d.users[1]
+        && d.type in ['distance', 'timed', 'weekDistance', 'activeDays', 'endurance']
+        && d.target is map && d.target.keys().hasOnly(['km', 'minutes'])
+        && optNum(d.target, 'km', 0.5, 100) && optNum(d.target, 'minutes', 1, 600)
+        && d.days is int && d.days >= 1 && d.days <= 14
+        && d.rated is bool
+        && d.names is map && d.names.size() <= 2;
+    }
+    function inChallenge(c) {
+      return request.auth.uid in c.users;
+    }
+    function resultDone(cid, u) {
+      return exists(/databases/$(database)/documents/challenges/$(cid)/results/$(u)) && get(/databases/$(database)/documents/challenges/$(cid)/results/$(u)).data.finished == true;
+    }
+
+    match /challenges/{cid} {
+      allow read: if verified() && inChallenge(resource.data);
+      allow create: if verified() && validChallenge(request.resource.data)
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.users[0] == request.auth.uid
+        && areFriends(request.resource.data.users[0], request.resource.data.users[1])
+        && !blockedBy(request.resource.data.users[1])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.acceptedAt == null && request.resource.data.deadline == null
+        && request.resource.data.winner == null && request.resource.data.finishedAt == null;
+      allow update: if verified() && inChallenge(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'acceptedAt', 'deadline', 'winner', 'finishedAt'])
+        && (
+          // the invited friend accepts within 48 h; the clock starts now
+          (resource.data.status == 'pending' && request.auth.uid == resource.data.users[1]
+            && request.time < resource.data.createdAt + duration.value(48, 'h')
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedAt == request.time
+            && request.resource.data.deadline is timestamp
+            && request.resource.data.deadline > request.time + duration.value(resource.data.days * 24 - 1, 'h')
+            && request.resource.data.deadline < request.time + duration.value(resource.data.days * 24 + 1, 'h'))
+          // or declines; the sender may cancel a pending invite
+          || (resource.data.status == 'pending'
+            && ((request.auth.uid == resource.data.users[1] && request.resource.data.status == 'declined')
+                || (request.auth.uid == resource.data.users[0] && request.resource.data.status == 'cancelled'))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+          // finished after the deadline, or once both runners met the goal
+          || (resource.data.status == 'accepted' && request.resource.data.status == 'finished'
+            && request.resource.data.finishedAt == request.time
+            && (request.resource.data.winner == null || request.resource.data.winner == 'tie'
+                || request.resource.data.winner in resource.data.users)
+            && (request.time > resource.data.deadline
+                || (resultDone(cid, resource.data.users[0]) && resultDone(cid, resource.data.users[1]))))
+        );
+
+      // each runner writes only their own result, from a real run inside the window
+      match /results/{u} {
+        allow read: if verified() && inChallenge(get(/databases/$(database)/documents/challenges/$(cid)).data);
+        allow create, update: if verified() && request.auth.uid == u
+          && u in get(/databases/$(database)/documents/challenges/$(cid)).data.users
+          && get(/databases/$(database)/documents/challenges/$(cid)).data.status == 'accepted'
+          && request.time <= get(/databases/$(database)/documents/challenges/$(cid)).data.deadline
+          && request.resource.data.keys().hasOnly(['value', 'finished', 'runId', 'share', 'updatedAt'])
+          && request.resource.data.finished is bool
+          && (request.resource.data.value == null || request.resource.data.value is number)
+          && request.resource.data.share is number
+          && request.resource.data.updatedAt == request.time
+          && (request.resource.data.runId == null
+              || (exists(/databases/$(database)/documents/users/$(u)/runs/$(request.resource.data.runId))
+                  && get(/databases/$(database)/documents/users/$(u)/runs/$(request.resource.data.runId)).data.startAt >= get(/databases/$(database)/documents/challenges/$(cid)).data.acceptedAt
+                  && get(/databases/$(database)/documents/users/$(u)/runs/$(request.resource.data.runId)).data.startAt <= get(/databases/$(database)/documents/challenges/$(cid)).data.deadline));
+      }
+    }
+
     // ── Group-run invites between friends ───────────────────────────────
     match /runInvites/{iid} {
       allow read: if verified()

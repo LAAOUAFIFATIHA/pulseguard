@@ -850,3 +850,116 @@ export async function deleteAccount(password) {
   await deleteUser(user);
   await clearLocalAndReload();
 }
+
+// ── Challenges (Part C) ───────────────────────────────────────────────────
+const challengeRef = (id) => doc(db, "challenges", id);
+const resultRef = (id, u = uid()) => doc(db, "challenges", id, "results", u);
+const nameOf = (c) => ({ name: c?.displayName ?? "Runner", handle: c?.handle ?? "", avatar: c?.avatar ?? "🏃" });
+
+export async function createChallenge(friend, friendCard, { type, target, days, rated }) {
+  const ref = doc(collection(db, "challenges"));
+  const clean = Object.fromEntries(Object.entries(target ?? {}).filter(([, v]) => Number.isFinite(v)));
+  await setDoc(ref, {
+    users: [uid(), friend],
+    from: uid(),
+    type,
+    target: clean,
+    days,
+    rated,
+    status: "pending",
+    names: { [uid()]: nameOf(card), [friend]: nameOf(friendCard) },
+    createdAt: serverTimestamp(),
+    acceptedAt: null,
+    deadline: null,
+    winner: null,
+    finishedAt: null,
+  });
+  return ref.id;
+}
+
+export function watchChallenges(onChange, onError) {
+  return onSnapshot(
+    query(collection(db, "challenges"), where("users", "array-contains", uid()), orderBy("createdAt", "desc"), limit(50)),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+/** Accepting starts the clock: deadline = now + days (the rules allow 1 h of clock skew). */
+export async function acceptChallenge(c) {
+  await updateDoc(challengeRef(c.id), {
+    status: "accepted",
+    acceptedAt: serverTimestamp(),
+    deadline: Timestamp.fromMillis(Date.now() + c.days * 86400000),
+  });
+}
+export const declineChallenge = (c) => updateDoc(challengeRef(c.id), { status: "declined" });
+export const cancelChallenge = (c) => updateDoc(challengeRef(c.id), { status: "cancelled" });
+
+export async function challengeResults(c) {
+  const out = {};
+  for (const u of c.users) {
+    const x = await getDoc(resultRef(c.id, u)).catch(() => null);
+    if (x?.exists()) out[u] = x.data();
+  }
+  return out;
+}
+
+export const saveChallengeResult = (c, p) =>
+  setDoc(resultRef(c.id), { value: p.value ?? null, finished: !!p.finished, runId: p.runId ?? null, share: Math.round((p.share ?? 0) * 100) / 100, updatedAt: serverTimestamp() });
+
+export async function finishChallenge(c, winner) {
+  await updateDoc(challengeRef(c.id), { status: "finished", winner: winner ?? null, finishedAt: serverTimestamp() });
+}
+
+/** Wins are counted on the public card. */
+export async function addChallengeWin() {
+  if (!card) return;
+  await saveCard({ ...card, challengesWon: (card.challengesWon ?? 0) + 1 });
+}
+
+/** My weekly distance on the card (for leaderboards). */
+export async function syncWeekKm(weekKmValue, key) {
+  if (!card) return;
+  await saveCard({ ...card, weekKm: Math.round(weekKmValue * 10) / 10, weekKey: key });
+}
+
+// ── Leaderboards and runners at your level (Part D) ───────────────────────
+async function cardsOf(uids) {
+  const list = await Promise.all([...new Set(uids)].map(async (u) => {
+    const c = u === uid() ? card : await cardOf(u);
+    return c ? { ...c, uid: u } : null;
+  }));
+  return list.filter(Boolean);
+}
+export async function friendCards() {
+  const ids = await getDocs(sub("friends")).then((x) => x.docs.map((d) => d.id)).catch(() => []);
+  return cardsOf([uid(), ...ids]);
+}
+export async function followingCards() {
+  const ids = await getDocs(sub("following")).then((x) => x.docs.map((d) => d.id)).catch(() => []);
+  return cardsOf([uid(), ...ids]);
+}
+export async function teamCards(code) {
+  if (!code) return [];
+  const ids = await getDocs(collection(db, "teams", code, "members")).then((x) => x.docs.map((d) => d.id)).catch(() => []);
+  return cardsOf([uid(), ...ids]);
+}
+export async function cityCards(cityKey) {
+  if (!cityKey) return [];
+  const snap = await getDocs(
+    query(collection(db, "profiles"), where("discoverable", "==", true), where("leaderboard", "==", true), where("cityKey", "==", cityKey), limit(50))
+  );
+  return snap.docs.map((d) => ({ ...d.data(), uid: d.id }));
+}
+export async function runnersAtMyLevel(rating, span = 150) {
+  const snap = await getDocs(
+    query(collection(db, "profiles"), where("discoverable", "==", true), where("rating", ">=", rating - span), where("rating", "<=", rating + span), orderBy("rating"), limit(20))
+  );
+  return snap.docs.map((d) => ({ ...d.data(), uid: d.id })).filter((c) => c.uid !== uid());
+}
+export async function setLeaderboardOptIn(on) {
+  if (!card) return;
+  const key = (card.city ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  await saveCard({ ...card, leaderboard: on, cityKey: on ? key : null });
+}

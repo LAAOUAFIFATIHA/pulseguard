@@ -686,3 +686,65 @@ test("block and mute lists are private", async () => {
   await assertFails(getDocs(collection(as("bob"), "users/alice/muted")));
   await assertFails(setDoc(doc(as("bob"), "users/alice/blocked/carol"), { since: serverTimestamp() }));
 });
+
+// ── Part C: friend challenges ──────────────────────────────────────────────
+const challenge = (extra = {}) => ({
+  users: ["alice", "bob"], from: "alice", type: "distance", target: { km: 5 }, days: 3, rated: true, status: "pending",
+  names: { alice: { name: "Alice" }, bob: { name: "Bob" } }, createdAt: serverTimestamp(),
+  acceptedAt: null, deadline: null, winner: null, finishedAt: null, ...extra,
+});
+const accept = (db, id) =>
+  updateDoc(doc(db, `challenges/${id}`), { status: "accepted", acceptedAt: serverTimestamp(), deadline: Timestamp.fromMillis(Date.now() + 3 * 86400000) });
+
+test("challenges: only friends, from yourself; the invited friend accepts", async () => {
+  await seedFriends();
+  await assertFails(setDoc(doc(as("alice"), "challenges/x"), challenge({ users: ["alice", "carol"] }))); // not friends
+  await assertFails(setDoc(doc(as("bob"), "challenges/x"), challenge())); // not from bob
+  await assertFails(setDoc(doc(as("alice"), "challenges/x"), challenge({ status: "accepted" })));
+  await assertFails(setDoc(doc(as("alice"), "challenges/x"), challenge({ days: 30 })));
+  await assertSucceeds(setDoc(doc(as("alice"), "challenges/c1"), challenge()));
+  await assertFails(getDoc(doc(as("carol"), "challenges/c1")));
+  await assertFails(accept(as("alice"), "c1")); // the sender cannot accept
+  await assertFails(updateDoc(doc(as("bob"), "challenges/c1"), { status: "accepted", acceptedAt: serverTimestamp(), deadline: Timestamp.fromMillis(Date.now() + 9 * 86400000) }));
+  await assertSucceeds(accept(as("bob"), "c1"));
+  await assertSucceeds(getDocs(query(collection(as("bob"), "challenges"), where("users", "array-contains", "bob"))));
+});
+
+test("challenges: invites expire after 48 h", async () => {
+  await seedFriends();
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), "challenges/old"), { ...challenge(), createdAt: Timestamp.fromMillis(Date.now() - 49 * 3600000) })
+  );
+  await assertFails(accept(as("bob"), "old"));
+  await assertSucceeds(updateDoc(doc(as("bob"), "challenges/old"), { status: "declined" }));
+});
+
+test("challenge results: own result only, from a real run inside the window; rating once", async () => {
+  await seedFriends();
+  await seedRating();
+  await assertSucceeds(setDoc(doc(as("alice"), "challenges/c2"), challenge()));
+  await assertSucceeds(accept(as("bob"), "c2"));
+  const inWindow = { ...runDoc(), startAt: Timestamp.fromMillis(Date.now() + 1000) };
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users/alice/runs/r_in"), inWindow));
+  const result = (runId, finished = true) => ({ value: 1, finished, runId, share: 1, updatedAt: serverTimestamp() });
+  await assertFails(setDoc(doc(as("alice"), "challenges/c2/results/alice"), result("s1"))); // run before acceptance
+  await assertFails(setDoc(doc(as("alice"), "challenges/c2/results/alice"), result("nope"))); // no such run
+  await assertFails(setDoc(doc(as("alice"), "challenges/c2/results/bob"), result(null))); // someone else's
+  await assertSucceeds(setDoc(doc(as("alice"), "challenges/c2/results/alice"), result("r_in")));
+  // not finished yet: cannot close before the deadline unless both met the goal
+  await assertFails(updateDoc(doc(as("alice"), "challenges/c2"), { status: "finished", winner: "alice", finishedAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(as("bob"), "challenges/c2/results/bob"), { ...result(null, true), value: 2 }));
+  await assertFails(updateDoc(doc(as("alice"), "challenges/c2"), { status: "finished", winner: "carol", finishedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(as("alice"), "challenges/c2"), { status: "finished", winner: "alice", finishedAt: serverTimestamp() }));
+  // rating event once per challenge, never negative
+  const db = as("alice");
+  const ev = (delta) => {
+    const b = writeBatch(db);
+    b.set(doc(db, "users/alice/ratingEvents/challenge_c2"), { kind: "challenge", refId: "c2", before: 500, after: 500 + delta, delta, reasons: ["Won"], createdAt: serverTimestamp() });
+    b.set(doc(db, "users/alice/rating/current"), { ...ratingState(500 + delta), peak: Math.max(500, 500 + delta), runsRated: 0, lastEventId: "challenge_c2" });
+    return b.commit();
+  };
+  await assertFails(ev(-5));
+  await assertSucceeds(ev(17));
+  await assertFails(ev(17));
+});

@@ -508,6 +508,22 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .avatar-emoji.sm { width: 30px; height: 30px; font-size: 15px; }
 .comment-form { display: flex; gap: 8px; }
 
+/* ── Compete ── */
+.ch-list, .lb-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.ch-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--surface-2); display: flex; flex-direction: column; gap: 6px; }
+.ch-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ch-line { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px; align-items: center; font-size: 14px; }
+.ch-progress { background: var(--border); height: 8px; }
+.ch-progress span { background: linear-gradient(90deg, var(--p-redwood), var(--p-coral)); }
+.ch-result { font-weight: 700; color: var(--accent); }
+.lb-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); flex-wrap: wrap; }
+.lb-row.me { border-color: var(--accent); background: var(--surface-2); }
+.lb-pos { width: 34px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lb-val { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.warn-text { color: var(--p-redwood); }
+#challenge-dialog { max-width: 440px; width: calc(100% - 32px); }
+
 /* ── Profiles ── */
 .pf-head { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
 .avatar-xl { width: 96px; height: 96px; font-size: 46px; }

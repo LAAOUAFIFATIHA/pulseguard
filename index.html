@@ -160,6 +160,7 @@
           <a href="#/team" data-route="team"><svg><use href="#i-team" /></svg>Team</a>
           <a href="#/friends" data-route="friends"><svg><use href="#i-friends" /></svg>Friends<span id="friends-badge" class="nav-badge" aria-label="pending"></span></a>
           <a href="#/rating" data-route="rating"><svg><use href="#i-trophy" /></svg>Rating</a>
+          <a href="#/compete" data-route="compete"><svg><use href="#i-flag" /></svg>Compete<span id="ch-count" class="nav-badge" aria-label="challenge invites"></span></a>
           <a href="#/profile" data-route="profile"><svg><use href="#i-profile" /></svg>Profile</a>
           <a href="#/settings" data-route="settings"><svg><use href="#i-settings" /></svg>Settings</a>
         </nav>
@@ -187,6 +188,19 @@
         </div>
       </dialog>
       <canvas id="confetti" class="confetti" hidden></canvas>
+      <dialog id="challenge-dialog" aria-labelledby="ch-title">
+        <form id="ch-form" class="form">
+          <h2 id="ch-title">Challenge a friend</h2>
+          <label for="ch-friend">Friend</label><select id="ch-friend" required></select>
+          <label for="ch-type">Challenge</label><select id="ch-type"></select>
+          <div id="ch-km-field"><label for="ch-km">Distance (km)</label><input id="ch-km" type="number" min="0.5" max="100" step="0.5" value="5" /></div>
+          <div id="ch-min-field"><label for="ch-min">Under (minutes)</label><input id="ch-min" type="number" min="1" max="600" value="35" /></div>
+          <label for="ch-days">Duration</label><select id="ch-days"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">1 week</option><option value="14">2 weeks</option></select>
+          <label class="check"><input type="checkbox" id="ch-rated" checked /> <span>Rated (counts for both ratings)</span></label>
+          <p id="ch-warn" class="hint warn-text" role="status"></p>
+          <div class="actions"><button type="button" id="ch-cancel" class="btn btn-ghost">Cancel</button><button type="submit" class="btn btn-primary">Send</button></div>
+        </form>
+      </dialog>
 
       <dialog id="report-dialog" class="share-dialog" aria-labelledby="report-title">
         <form id="report-form" class="form">
@@ -610,6 +624,38 @@
             <ul id="rating-changes" class="changes"></ul>
           </div>
           <p class="disclaimer">Demo: runs come from the simulated shirt and count at 50%. A motivational score, not a fitness or medical assessment.</p>
+        </section>
+
+        <!-- Compete: challenges, runners at your level, leaderboards -->
+        <section class="page" data-page="compete" hidden>
+          <div class="card">
+            <div class="card-head">
+              <div><h2>Challenges</h2><p class="muted">Between friends. Only runs after you accept and before the deadline count. Invites last 48 h.</p></div>
+              <button type="button" id="ch-new" class="btn btn-primary btn-sm">New challenge</button>
+            </div>
+            <div class="tabs" role="tablist" data-tabs="ch"><button type="button" role="tab" data-tab="incoming" aria-selected="true">Incoming</button><button type="button" role="tab" data-tab="active" aria-selected="false">Active</button><button type="button" role="tab" data-tab="history" aria-selected="false">History</button></div>
+            <div data-panels="ch">
+              <ul data-panel="incoming" id="ch-incoming" class="ch-list"></ul>
+              <ul data-panel="active" id="ch-active" class="ch-list" hidden></ul>
+              <ul data-panel="history" id="ch-history" class="ch-list" hidden></ul>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-head"><div><h2>Runners at your level</h2><p class="muted">Within ±150 of your rating (<span id="level-rating">500</span>).</p></div></div>
+              <ul id="level-list" class="lb-list"></ul>
+            </div>
+            <div class="card">
+              <div class="card-head"><div><h2>Leaderboards</h2><p class="muted">Ranked from public cards.</p></div></div>
+              <div class="lb-controls">
+                <select id="lb-scope" aria-label="Who"><option value="friends">Friends</option><option value="following">Following</option><option value="team">My team</option><option value="city">My city</option></select>
+                <select id="lb-metric" aria-label="By"><option value="rating">Rating</option><option value="weekKm">This week's distance</option><option value="challengesWon">Challenges won</option></select>
+              </div>
+              <label id="lb-optin-row" class="check" hidden><input type="checkbox" id="lb-optin" /> <span>Show me on my city's leaderboard (opt-in)</span></label>
+              <ol id="lb-list" class="lb-list"></ol>
+            </div>
+          </div>
+          <p class="disclaimer">Challenges give rating only when rated: finisher +10, winner +5, times difficulty and level gap. Never negative. Max 3 rated a week, 1 per friend.</p>
         </section>
 
         <!-- Profile -->

@@ -7,6 +7,7 @@ const ROUTES = {
   team: ["Team", "Training partners who chose to share with each other"],
   friends: ["Friends", "Find runners, manage requests and invite friends to run"],
   rating: ["Rating", "Your rank, divisions and why your rating changed"],
+  compete: ["Compete", "Challenges, runners at your level and leaderboards"],
   runner: ["Runner", "Profile, runs, records and badges"],
   profile: ["Profile", "Your status, thresholds and personal details"],
   settings: ["Settings", "Data, privacy and account"],

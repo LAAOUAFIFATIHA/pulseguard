@@ -24,6 +24,11 @@ const RUNNERS = [
   ["Adam Chraibi", "adam", "🦊", "Casablanca", "starting", "Back to running after a break"],
 ];
 // demo ratings (Rookie 500 to Grand Master), Karim has a private account
+import { weekKey } from "../src/runsummary.js";
+const WEEK = weekKey(new Date());
+const WEEK_KM = { yasmine: 21.4, omar: 38.2, salma: 9.5, karim: 26, nora: 6.1, youssef: 44.7, lina: 14.3, adam: 4.2 };
+const WON = { yasmine: 3, omar: 6, salma: 1, karim: 2, nora: 0, youssef: 9, lina: 1, adam: 0 };
+const cityKey = (c) => c.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const RATING = { yasmine: 1240, omar: 2320, salma: 880, karim: 1450, nora: 560, youssef: 3110, lina: 990, adam: 610 };
 const PRIVATE = new Set(["karim"]);
 const rankName = (r) => (r < 1000 ? "Rookie" : r < 2000 ? "Pacer" : r < 3000 ? "Racer" : r < 4000 ? "Master" : r < 5000 ? "Grand Master" : "Legend");
@@ -142,6 +147,11 @@ for (const [name, key, avatar, city, level, bio] of RUNNERS) {
     rating: RATING[key],
     rank: rankName(RATING[key]),
     ...(PRIVATE.has(key) ? { private: true } : {}),
+    weekKm: WEEK_KM[key],
+    weekKey: WEEK,
+    challengesWon: WON[key],
+    leaderboard: true,
+    cityKey: cityKey(city),
   });
   await put(`users/${uid}/rating/current`, { rating: RATING[key], peak: RATING[key] + 40, runsRated: 12, rank: rankName(RATING[key]), lastEventId: "", lastRunAt: new Date(now - 86400000), decayWeeks: 0, updatedAt: created });
 
@@ -216,6 +226,12 @@ for (const key of ["yasmine", "omar", "salma"]) await befriend(me, uids[key], jo
 await put(`users/${me}/rating/current`, { rating: 720, peak: 760, runsRated: 5, rank: "Rookie", lastEventId: "", lastRunAt: new Date(now - 86400000), decayWeeks: 0, updatedAt: joined });
 const prof = await get(`profiles/${me}`);
 await put(`profiles/${me}`, { ...decode(prof), rating: 720, rank: "Rookie" });
+// a challenge invite from Yasmine waiting for the test account
+await put("challenges/demo_invite", {
+  users: [uids.yasmine, me], from: uids.yasmine, type: "distance", target: { km: 3 }, days: 3, rated: true, status: "pending",
+  names: { [uids.yasmine]: { name: "Yasmine Benali", handle: "demo_yasmine", avatar: "🏃‍♀️" }, [me]: { name: "Test Runner", handle: "test_runner", avatar: "🏃" } },
+  createdAt: new Date(now - 3600000), acceptedAt: null, deadline: null, winner: null, finishedAt: null,
+});
 // follows: the test account follows Nora and Youssef; Lina and Adam follow it; demo runners follow each other
 async function follow(a, b) {
   await put(`users/${a}/following/${b}`, { since: joined });
