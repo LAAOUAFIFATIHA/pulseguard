@@ -3,11 +3,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Everything not matched below is denied.
 
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
     // Own data only, and only with a verified email.
     function isOwner(uid) {
-      return request.auth != null
-        && request.auth.uid == uid
-        && request.auth.token.email_verified == true;
+      return verified() && request.auth.uid == uid;
     }
 
     function optInt(d, key, lo, hi) {
@@ -22,10 +24,13 @@ service cloud.firestore {
     function shortString(v, max) {
       return v is string && v.size() >= 1 && v.size() <= max;
     }
+    function teamCode(v) {
+      return v is string && v.matches('^[A-HJ-NP-Z2-9]{8}$');
+    }
 
     function validProfile(d) {
       return d.keys().hasOnly(['displayName', 'age', 'restingHr', 'role', 'sex', 'runner',
-                               'heightCm', 'weightKg', 'consentAt', 'updatedAt'])
+                               'heightCm', 'weightKg', 'teamId', 'consentAt', 'updatedAt'])
         && d.keys().hasAll(['displayName', 'age', 'role', 'consentAt', 'updatedAt'])
         && shortString(d.displayName, 60)
         && d.age is int && d.age >= 13 && d.age <= 100
@@ -35,15 +40,17 @@ service cloud.firestore {
         && optInt(d, 'weightKg', 30, 250)
         && optChoice(d, 'sex', ['female', 'male'])
         && optChoice(d, 'runner', ['not a runner', 'occasional runner', 'regular runner', 'athlete'])
+        && (!('teamId' in d) || teamCode(d.teamId))
         && d.consentAt is timestamp
         && d.updatedAt == request.time;
     }
 
     function validWindow(d) {
-      return d.keys().hasOnly(['startAt', 'seconds', 'label', 'activity', 'motion', 'beats', 'avgHr',
-                               'minHr', 'maxHr', 'rrCv', 'avgTempC', 'avgHumidity', 'alerts'])
+      return d.keys().hasOnly(['startAt', 'sessionId', 'seconds', 'label', 'activity', 'motion', 'beats',
+                               'avgHr', 'minHr', 'maxHr', 'rrCv', 'avgTempC', 'avgHumidity', 'alerts'])
         && d.keys().hasAll(['startAt', 'seconds', 'label', 'activity', 'beats', 'alerts'])
         && d.startAt is timestamp
+        && (!('sessionId' in d) || shortString(d.sessionId, 40))
         && d.seconds is number && d.seconds > 0 && d.seconds <= 10
         && shortString(d.label, 30)
         && d.activity in ['rest', 'exercise']
@@ -68,6 +75,32 @@ service cloud.firestore {
         && numOrNull(d.peakHr, 0, 300);
     }
 
+    function validTeam(d) {
+      return d.keys().hasOnly(['name', 'ownerUid', 'createdAt'])
+        && shortString(d.name, 40)
+        && d.ownerUid == request.auth.uid;
+    }
+
+    // What a member shares with their team: summaries only.
+    function validMember(d) {
+      return d.keys().hasOnly(['displayName', 'role', 'joinedAt', 'updatedAt', 'state', 'hr', 'alert',
+                               'lastNormalHr', 'lastNormalAt', 'trend', 'session'])
+        && d.keys().hasAll(['displayName', 'role', 'joinedAt', 'updatedAt', 'state'])
+        && shortString(d.displayName, 60)
+        && d.role in ['athlete', 'coach']
+        && d.joinedAt is timestamp
+        && d.updatedAt == request.time
+        && d.state in ['idle', 'normal', 'alert']
+        && numOrNull(d.get('hr', null), 0, 300)
+        && (d.get('alert', null) == null || shortString(d.alert, 60))
+        && numOrNull(d.get('lastNormalHr', null), 0, 300)
+        && (d.get('lastNormalAt', null) == null || d.lastNormalAt is timestamp)
+        && d.get('trend', []) is list && d.get('trend', []).size() <= 30
+        && (d.get('session', null) == null
+            || (d.session is map
+                && d.session.keys().hasOnly(['startAt', 'minutes', 'avgHr', 'maxHr', 'alerts'])));
+    }
+
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow create: if isOwner(uid) && validProfile(request.resource.data);
@@ -86,6 +119,32 @@ service cloud.firestore {
         // an event may only be closed and have its peak updated
         allow update: if isOwner(uid) && validEvent(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endAt', 'peakHr']);
+      }
+    }
+
+    // Teams: joining needs the 8-character invite code. Members see each
+    // other's shared summary; nobody can list teams.
+    match /teams/{code} {
+      allow get: if verified();
+      allow create: if verified() && teamCode(code)
+        && validTeam(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if verified() && resource.data.ownerUid == request.auth.uid
+        && validTeam(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if verified() && resource.data.ownerUid == request.auth.uid;
+
+      match /members/{uid} {
+        allow read: if verified()
+          && exists(/databases/$(database)/documents/teams/$(code)/members/$(request.auth.uid));
+        allow create: if isOwner(uid)
+          && exists(/databases/$(database)/documents/teams/$(code))
+          && validMember(request.resource.data);
+        allow update: if isOwner(uid) && validMember(request.resource.data)
+          && request.resource.data.joinedAt == resource.data.joinedAt;
+        // a member leaves, or the team owner removes them
+        allow delete: if isOwner(uid)
+          || (verified() && get(/databases/$(database)/documents/teams/$(code)).data.ownerUid == request.auth.uid);
       }
     }
   }

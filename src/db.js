@@ -1,10 +1,13 @@
 // Firebase Auth + Firestore for the signed-in user.
 //
-//   users/{uid}                profile and consent
-//   users/{uid}/windows/{id}   10 s summaries (never raw signals)
-//   users/{uid}/events/{id}    anomaly events
+//   users/{uid}                      profile, consent, team code
+//   users/{uid}/windows/{id}         10 s summaries (never raw signals)
+//   users/{uid}/events/{id}          anomaly events
+//   teams/{code}                     team name and owner
+//   teams/{code}/members/{uid}       what a member shares with the team
 //
-// firestore.rules enforces ownership, verified email and field validation.
+// firestore.rules enforces ownership, team membership, verified email and
+// field validation.
 import {
   getAuth,
   connectAuthEmulator,
@@ -31,6 +34,7 @@ import {
   waitForPendingWrites,
   terminate,
   clearIndexedDbPersistence,
+  onSnapshot,
   Timestamp,
   query,
   orderBy,
@@ -52,6 +56,8 @@ if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === "1") {
 const uid = () => auth.currentUser.uid;
 const userRef = () => doc(db, "users", uid());
 const sub = (name) => collection(db, "users", uid(), name);
+const teamRef = (code) => doc(db, "teams", code);
+const memberRef = (code, id = uid()) => doc(db, "teams", code, "members", id);
 
 // ── Profile ───────────────────────────────────────────────────────────────
 let profile = null;
@@ -63,29 +69,39 @@ export async function loadProfile() {
   return profile;
 }
 
-const NUMBER_FIELDS = { age: true, restingHr: true, heightCm: true, weightKg: true };
+const FIELDS = ["displayName", "age", "restingHr", "role", "sex", "runner", "heightCm", "weightKg", "teamId"];
+const NUMBER_FIELDS = new Set(["age", "restingHr", "heightCm", "weightKg"]);
 
 /** Keeps only the allowed, non-empty fields; whole numbers. */
 function clean(input) {
   const out = {};
-  for (const key of ["displayName", "age", "restingHr", "role", "sex", "runner", "heightCm", "weightKg"]) {
+  for (const key of FIELDS) {
     const value = input[key];
     if (value === undefined || value === null || value === "") continue;
-    out[key] = NUMBER_FIELDS[key] ? Math.round(Number(value)) : String(value).trim();
+    out[key] = NUMBER_FIELDS.has(key) ? Math.round(Number(value)) : String(value).trim();
   }
   return out;
 }
 
-/** `input` replaces the profile; the consent date is set once and kept. */
+/**
+ * `input` replaces the editable profile. The team code is kept unless
+ * `input.teamId` is given ("" removes it). The consent date never changes.
+ */
 export async function saveProfile(input) {
   const next = {
-    ...clean(input),
+    ...clean({ teamId: profile?.teamId, ...input }),
     consentAt: profile?.consentAt ?? Timestamp.now(),
     updatedAt: serverTimestamp(),
   };
   const write = setDoc(userRef(), next);
   profile = next;
   await write;
+}
+
+/** Changes only the team code, keeping the rest of the profile. */
+async function setTeamId(teamId) {
+  const current = Object.fromEntries(FIELDS.map((k) => [k, profile?.[k]]));
+  await saveProfile({ ...current, teamId });
 }
 
 // ── Measurements ──────────────────────────────────────────────────────────
@@ -105,10 +121,81 @@ export function saveEvent(id, { type, severity, startAt, endAt, peakHr }, onErro
   }).catch(onError);
 }
 
-export async function recentEvents(max = 10) {
+/** Newest first. */
+export async function loadWindows(max = 600) {
+  const snap = await getDocs(query(sub("windows"), orderBy("startAt", "desc"), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function recentEvents(max = 200) {
   const snap = await getDocs(query(sub("events"), orderBy("startAt", "desc"), limit(max)));
   return snap.docs.map((d) => d.data());
 }
+
+// ── Teams ─────────────────────────────────────────────────────────────────
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+export const TEAM_CODE = /^[A-HJ-NP-Z2-9]{8}$/;
+
+function newCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
+}
+
+export async function getTeam(code) {
+  const snap = await getDoc(teamRef(code));
+  return snap.exists() ? { id: code, ...snap.data() } : null;
+}
+
+function memberCard() {
+  return {
+    displayName: profile.displayName,
+    role: profile.role,
+    joinedAt: Timestamp.now(),
+    updatedAt: serverTimestamp(),
+    state: "idle",
+  };
+}
+
+export async function createTeam(name) {
+  const code = newCode();
+  await setDoc(teamRef(code), { name: name.trim(), ownerUid: uid(), createdAt: serverTimestamp() });
+  await setDoc(memberRef(code), memberCard());
+  await setTeamId(code);
+  return code;
+}
+
+export async function joinTeam(code) {
+  await setDoc(memberRef(code), memberCard());
+  await setTeamId(code);
+}
+
+export async function leaveTeam() {
+  const code = profile?.teamId;
+  if (!code) return;
+  await deleteDoc(memberRef(code)).catch(() => {}); // the team may be gone already
+  await setTeamId("");
+}
+
+const ts = (ms) => (ms == null ? null : Timestamp.fromMillis(ms));
+
+/** Partial update of what this user shares (times in ms). */
+export function shareStatus(data, onError) {
+  if (!profile?.teamId) return;
+  const out = { ...data, displayName: profile.displayName, role: profile.role, updatedAt: serverTimestamp() };
+  if ("lastNormalAt" in data) out.lastNormalAt = ts(data.lastNormalAt);
+  if (data.session) out.session = { ...data.session, startAt: ts(data.session.startAt) };
+  setDoc(memberRef(profile.teamId), out, { merge: true }).catch(onError);
+}
+
+export function watchMembers(code, onChange, onError) {
+  return onSnapshot(
+    collection(db, "teams", code, "members"),
+    (snap) => onChange(snap.docs.map((d) => ({ uid: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+export const removeMember = (code, memberUid) => deleteDoc(memberRef(code, memberUid));
 
 // ── Export, sign out, delete ──────────────────────────────────────────────
 const plain = (data) =>
@@ -118,10 +205,13 @@ const plain = (data) =>
 
 export async function exportAll() {
   const [me, windows, events] = await Promise.all([getDoc(userRef()), getDocs(sub("windows")), getDocs(sub("events"))]);
+  const code = me.data()?.teamId;
+  const shared = code ? await getDoc(memberRef(code)).catch(() => null) : null;
   return {
     exportedAt: new Date().toISOString(),
     email: auth.currentUser.email,
     profile: me.exists() ? plain(me.data()) : null,
+    sharedWithTeam: shared?.exists() ? plain(shared.data()) : null,
     windows: windows.docs.map((d) => plain(d.data())),
     events: events.docs.map((d) => plain(d.data())),
   };
@@ -156,6 +246,13 @@ export async function deleteAccount(password) {
     await reauthenticateWithPopup(user, new GoogleAuthProvider());
   }
   await user.getIdToken(true);
+
+  const code = profile?.teamId;
+  if (code) {
+    await deleteDoc(memberRef(code)).catch(() => {});
+    const team = await getTeam(code).catch(() => null);
+    if (team?.ownerUid === user.uid) await deleteDoc(teamRef(code)).catch(() => {});
+  }
   for (const name of ["windows", "events"]) {
     const { docs } = await getDocs(sub(name));
     for (let i = 0; i < docs.length; i += 400) {

@@ -96,3 +96,64 @@ test("consent date and event type cannot be rewritten", async () => {
   await assertFails(updateDoc(doc(db, "users/alice/events/e1"), { type: "irregular" }));
   await assertFails(updateDoc(doc(db, "users/alice/windows/w1"), { avgHr: 60 }));
 });
+
+// ── Teams ──────────────────────────────────────────────────────────────────
+const CODE = "ABCD2345";
+const member = (name, extra = {}) => ({
+  displayName: name, role: "athlete", joinedAt: t0, updatedAt: serverTimestamp(), state: "normal",
+  hr: 70, lastNormalHr: 68, trend: [70, 71], ...extra,
+});
+
+async function seedTeam() {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `teams/${CODE}`), { name: "Club", ownerUid: "coach", createdAt: t0 });
+    for (const uid of ["coach", "alice"]) {
+      await setDoc(doc(db, `teams/${CODE}/members/${uid}`), { ...member(uid), updatedAt: t0 });
+    }
+  });
+}
+
+test("windows may carry a session id; profiles a team code", async () => {
+  const db = as("alice");
+  await assertSucceeds(setDoc(doc(db, "users/alice/windows/w1"), windowDoc({ sessionId: "s-1" })));
+  await assertSucceeds(setDoc(doc(db, "users/alice"), profile({ teamId: CODE })));
+  await assertFails(setDoc(doc(db, "users/alice"), profile({ teamId: "lower123" })));
+});
+
+test("anyone verified can create a team with a valid code, as its owner", async () => {
+  const db = as("bob");
+  const team = { name: "Runners", ownerUid: "bob", createdAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(db, "teams/QWER2345"), team));
+  await assertFails(setDoc(doc(db, "teams/bad"), team));
+  await assertFails(setDoc(doc(db, "teams/ZXCV2345"), { ...team, ownerUid: "someone-else" }));
+  await assertFails(getDocs(collection(db, "teams")));
+});
+
+test("team members see each other; outsiders see nobody", async () => {
+  await seedTeam();
+  await assertSucceeds(getDocs(collection(as("alice"), `teams/${CODE}/members`)));
+  await assertSucceeds(getDoc(doc(as("coach"), `teams/${CODE}/members/alice`)));
+  await assertFails(getDocs(collection(as("mallory"), `teams/${CODE}/members`)));
+  await assertFails(getDoc(doc(as("mallory"), `teams/${CODE}/members/alice`)));
+  await assertFails(getDocs(collection(as("alice", false), `teams/${CODE}/members`)));
+});
+
+test("joining needs an existing team and only writes your own card", async () => {
+  await seedTeam();
+  const db = as("bob");
+  await assertSucceeds(setDoc(doc(db, `teams/${CODE}/members/bob`), member("Bob")));
+  await assertFails(setDoc(doc(db, "teams/NONE2345/members/bob"), member("Bob")));
+  await assertFails(setDoc(doc(db, `teams/${CODE}/members/alice`), member("Fake")));
+  await assertFails(setDoc(doc(db, `teams/${CODE}/members/bob`), member("Bob", { samples: [1, 2] })));
+  await assertFails(setDoc(doc(db, `teams/${CODE}/members/bob`), member("Bob", { trend: new Array(31).fill(1) })));
+});
+
+test("members leave; only the owner removes others", async () => {
+  await seedTeam();
+  await assertFails(deleteDoc(doc(as("alice"), `teams/${CODE}/members/coach`)));
+  await assertSucceeds(deleteDoc(doc(as("coach"), `teams/${CODE}/members/alice`)));
+  await seedTeam();
+  await assertSucceeds(deleteDoc(doc(as("alice"), `teams/${CODE}/members/alice`)));
+  await assertFails(deleteDoc(doc(as("alice"), `teams/${CODE}`)));
+});
