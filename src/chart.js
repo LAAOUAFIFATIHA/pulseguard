@@ -48,8 +48,8 @@ export class EcgChart {
     const w = canvas.width;
     const h = canvas.height;
     const css = getComputedStyle(canvas);
-    const grid = css.getPropertyValue("--grid").trim() || "#f3c4c4";
-    const trace = css.getPropertyValue("--trace").trim() || "#b91c1c";
+    const grid = css.getPropertyValue("--grid").trim() || "#f3d4da";
+    const trace = css.getPropertyValue("--trace").trim() || "#9b1c2d";
 
     ctx.clearRect(0, 0, w, h);
 
