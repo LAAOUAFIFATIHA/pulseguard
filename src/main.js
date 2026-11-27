@@ -15,6 +15,7 @@ import { initHome } from "./home.js";
 import { initRating } from "./ratingui.js";
 import { buildRun, maxHeartRate } from "./runsummary.js";
 import { saveRun, rateFinishedRun } from "./db.js";
+import { downsample } from "./feed.js";
 import { createScheduler, ruleLevel, parseVerdict, worst } from "./healthcheck.js";
 
 const $ = (id) => document.getElementById(id);
@@ -372,7 +373,9 @@ $("finish-run").onclick = async () => {
   }
   monitor.stop();
   const sessionId = history.sessionId();
-  const run = buildRun(monitor.runData(), { maxHr: maxHeartRate(readProfile().age) });
+  const data = monitor.runData();
+  const run = buildRun(data, { maxHr: maxHeartRate(readProfile().age) });
+  home.setLastRun(run, downsample(data.hrLog.map((h) => h.hr), 60));
   $("finish-run").disabled = true;
   try {
     await saveRun(sessionId, run);
@@ -386,6 +389,11 @@ $("finish-run").onclick = async () => {
     $("finish-run").disabled = false;
     monitor.reset();
   }
+};
+
+$("result-share").onclick = () => {
+  $("result-dialog").close();
+  home.shareLastRun();
 };
 
 // ── Automatic start ────────────────────────────────────────────────────────

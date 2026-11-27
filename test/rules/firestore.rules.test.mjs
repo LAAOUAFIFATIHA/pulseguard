@@ -573,3 +573,44 @@ test("the public card shows only the real rating and rank", async () => {
   await assertFails(setDoc(doc(alice, "profiles/alice"), { ...card("alice"), rank: "Legend" }));
   await assertSucceeds(setDoc(doc(alice, "profiles/alice"), { ...card("alice"), rank: "Rookie", showRating: false }));
 });
+
+// ── Comments and reports ───────────────────────────────────────────────────
+const comment = (uid, extra = {}) => ({
+  uid, author: { name: uid[0].toUpperCase() + uid.slice(1), handle: uid + "_run", avatar: "🏃" },
+  text: "Great run!", createdAt: serverTimestamp(), hidden: false, ...extra,
+});
+
+test("comments: only on posts you can see, as yourself, short", async () => {
+  await seedPosts();
+  await assertSucceeds(setDoc(doc(as("alice"), "posts/fr/comments/c1"), comment("alice")));
+  await assertFails(setDoc(doc(as("carol"), "posts/fr/comments/c2"), comment("carol"))); // cannot see the post
+  await assertSucceeds(setDoc(doc(as("carol"), "posts/pub/comments/c3"), comment("carol")));
+  await assertFails(setDoc(doc(as("carol"), "posts/pub/comments/c4"), comment("alice"))); // as someone else
+  await assertFails(setDoc(doc(as("carol"), "posts/pub/comments/c5"), comment("carol", { text: "x".repeat(281) })));
+  await assertFails(setDoc(doc(as("carol"), "posts/pub/comments/c6"), comment("carol", { hidden: true })));
+});
+
+test("comments: the post owner hides or deletes, others cannot", async () => {
+  await seedPosts();
+  await assertSucceeds(setDoc(doc(as("carol"), "posts/pub/comments/c1"), comment("carol")));
+  await assertFails(updateDoc(doc(as("mallory"), "posts/pub/comments/c1"), { hidden: true }));
+  await assertFails(updateDoc(doc(as("carol"), "posts/pub/comments/c1"), { text: "edited after" }));
+  await assertSucceeds(updateDoc(doc(as("bob"), "posts/pub/comments/c1"), { hidden: true }));
+  await assertFails(deleteDoc(doc(as("mallory"), "posts/pub/comments/c1")));
+  await assertSucceeds(deleteDoc(doc(as("bob"), "posts/pub/comments/c1")));
+});
+
+test("reports: anyone signed in can report, nobody can read them", async () => {
+  const report = { reporter: "carol", postId: "pub", reason: "spam", createdAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(as("carol"), "reports/r1"), report));
+  await assertFails(setDoc(doc(as("carol"), "reports/r2"), { ...report, reporter: "alice" }));
+  await assertFails(setDoc(doc(as("carol"), "reports/r3"), { ...report, reason: "nope" }));
+  await assertFails(getDoc(doc(as("carol"), "reports/r1")));
+});
+
+test("posts may carry endurance and zones, nothing else", async () => {
+  await seedCards();
+  const stats = { distanceM: 5200, seconds: 1800, avgHr: 142, maxHr: 168, alerts: 0, avgTempC: 34.1, endurance: 72, zones: [0, 900, 600, 300, 0] };
+  await assertSucceeds(setDoc(doc(as("alice"), "posts/z1"), post("alice", "public", { stats })));
+  await assertFails(setDoc(doc(as("alice"), "posts/z2"), post("alice", "public", { stats: { ...stats, endurance: 150 } })));
+});

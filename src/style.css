@@ -488,6 +488,26 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .result-rest { background: var(--bad-soft); color: var(--bad); font-weight: 600; padding: 8px 12px; border-radius: var(--radius-sm); }
 .confetti { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
 
+/* ── Comments, zones ── */
+.post-endurance { position: absolute; top: 8px; left: 10px; font-size: 12px; font-weight: 700; color: var(--ok); background: var(--ok-soft); padding: 3px 8px; border-radius: 999px; }
+.zone-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; gap: 2px; }
+.zone-bar span { min-width: 3px; }
+.zone-bar .z1 { background: color-mix(var(--mix), var(--p-coral) 35%, #fff); }
+.zone-bar .z2 { background: var(--p-teal); }
+.zone-bar .z3 { background: var(--p-coral); }
+.zone-bar .z4 { background: var(--p-redwood); }
+.zone-bar .z5 { background: var(--p-cosmos); }
+.comments { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.comment { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; }
+.comment.is-hidden { opacity: 0.5; }
+.comment-body { min-width: 0; font-size: 14px; }
+.comment-body p { color: var(--text-h); overflow-wrap: anywhere; }
+.comment-body .muted { font-size: 12px; }
+.comment-acts { display: flex; gap: 8px; }
+.comment-acts .link { font-size: 12px; }
+.avatar-emoji.sm { width: 30px; height: 30px; font-size: 15px; }
+.comment-form { display: flex; gap: 8px; }
+
 /* ── Profile and settings ───────────────────────────────────────────── */
 .profile-hero { display: flex; align-items: center; gap: 18px; }
 .profile-hero h2 { font-size: 22px; }

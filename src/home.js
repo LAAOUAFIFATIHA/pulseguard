@@ -1,5 +1,8 @@
 // Home: feed of shared runs (public, friends, mine) and the Share-a-run dialog.
-import { auth, getCard, sharePost, openFeed, setLike, likedByMe, deletePost } from "./db.js";
+import { auth, getCard, sharePost, openFeed, setLike, likedByMe, deletePost, listComments, addComment, deleteComment, hideComment, report } from "./db.js";
+import { zoneSeconds, drift, enduranceScore } from "./rating.js";
+import { maxHeartRate } from "./runsummary.js";
+import { readProfile } from "./profile.js";
 import { downsample } from "./feed.js";
 import { formatKm, formatPace, runTotals } from "./run.js";
 import { formatDuration } from "./sessions.js";
@@ -44,6 +47,23 @@ export function hrChart(trend) {
     <path d="${line}L${w},${h}L0,${h}Z" fill="url(#${id})" />
     <path d="${line}" class="line" />
   </svg>`;
+}
+
+const ZONE_NAMES = ["Easy", "Endurance", "Tempo", "Threshold", "Max"];
+/** Five-colour bar of time in heart-rate zones. */
+function zoneBar(zones) {
+  const total = zones.reduce((a, b) => a + b, 0) || 1;
+  const bar = el("div", "zone-bar");
+  bar.setAttribute("role", "img");
+  bar.setAttribute("aria-label", zones.map((z, i) => `Zone ${i + 1} ${Math.round((100 * z) / total)}%`).join(", "));
+  zones.forEach((z, i) => {
+    if (!z) return;
+    const seg = el("span", `z${i + 1}`);
+    seg.style.flexGrow = String(z);
+    seg.title = `Zone ${i + 1} · ${ZONE_NAMES[i]} · ${Math.round((100 * z) / total)}%`;
+    bar.append(seg);
+  });
+  return bar;
 }
 
 function statsRow(stats) {
@@ -93,6 +113,14 @@ export function initHome() {
     who.append(meta);
     head.append(who);
     if (p.author?.handle?.startsWith("demo_")) head.append(el("span", "tag", "Demo"));
+    if (!mine) {
+      const flag = el("button", "icon-btn sm");
+      flag.type = "button";
+      flag.setAttribute("aria-label", "Report this post");
+      flag.innerHTML = '<svg aria-hidden="true"><use href="#i-flag" /></svg>';
+      flag.onclick = () => openReport(p.id, null);
+      head.append(flag);
+    }
     if (mine) {
       const del = el("button", "icon-btn sm");
       del.type = "button";
@@ -115,7 +143,13 @@ export function initHome() {
       a.append(icon("i-alert"), ` ${p.stats.alerts} alert block${p.stats.alerts > 1 ? "s" : ""}`);
       chart.append(a);
     }
+    if (p.stats.endurance != null) {
+      const e = el("span", "post-endurance", `Endurance ${p.stats.endurance}`);
+      e.title = "Endurance score: time in zones 2-3, low drift and duration (motivational, not medical)";
+      chart.append(e);
+    }
     card.append(chart);
+    if (p.stats.zones?.length === 5) card.append(zoneBar(p.stats.zones));
 
     const foot = el("footer", "post-foot");
     let isLiked = liked;
@@ -141,8 +175,17 @@ export function initHome() {
         like.disabled = false;
       }
     };
-    foot.append(like, el("span", "sim", "Simulated sensor data"));
-    card.append(foot);
+    const talk = el("button", "like-btn");
+    talk.type = "button";
+    talk.innerHTML = '<svg aria-hidden="true"><use href="#i-coach" /></svg><span>Comments</span>';
+    const thread = el("div", "comments");
+    thread.hidden = true;
+    talk.onclick = () => {
+      thread.hidden = !thread.hidden;
+      if (!thread.hidden) loadComments(p, thread);
+    };
+    foot.append(like, talk, el("span", "sim", "Simulated sensor data"));
+    card.append(foot, thread);
     return card;
   }
 
@@ -183,6 +226,108 @@ export function initHome() {
   $("feed-more").onclick = loadMore;
 
   // ── Share a run ─────────────────────────────────────────────────────────
+  // ── Comments ────────────────────────────────────────────────────────────
+  async function loadComments(p, box) {
+    const me = auth.currentUser.uid;
+    const ownPost = p.ownerUid === me;
+    box.replaceChildren(el("p", "muted", "Loading…"));
+    let list = [];
+    try {
+      list = await listComments(p.id);
+    } catch {
+      box.replaceChildren(el("p", "muted", "Could not load comments."));
+      return;
+    }
+    const rows = list
+      .filter((c) => !c.hidden || ownPost)
+      .map((c) => {
+        const row = el("div", `comment${c.hidden ? " is-hidden" : ""}`);
+        row.append(el("span", "avatar avatar-emoji sm", c.author?.avatar ?? "🏃"));
+        const body = el("div", "comment-body");
+        body.append(el("strong", null, c.author?.name ?? "Runner"), el("span", "muted", ` @${c.author?.handle ?? ""} · ${timeAgo(c.atMs)}`), el("p", null, c.text));
+        row.append(body);
+        const acts = el("div", "comment-acts");
+        const act = (label, fn) => {
+          const b = el("button", "link", label);
+          b.type = "button";
+          b.onclick = async () => {
+            await fn().catch(() => say("That did not work."));
+            loadComments(p, box);
+          };
+          acts.append(b);
+        };
+        if (ownPost) act(c.hidden ? "Unhide" : "Hide", () => hideComment(p.id, c.id, !c.hidden));
+        if (ownPost || c.uid === me) act("Delete", () => deleteComment(p.id, c.id));
+        if (c.uid !== me) {
+          const b = el("button", "link", "Report");
+          b.type = "button";
+          b.onclick = () => openReport(p.id, c.id);
+          acts.append(b);
+        }
+        row.append(acts);
+        return row;
+      });
+    const form = el("form", "comment-form");
+    const input = el("input");
+    input.maxLength = 280;
+    input.placeholder = getCard() ? "Write a comment…" : "Create your public card to comment";
+    input.disabled = !getCard();
+    input.setAttribute("aria-label", "Comment");
+    const send = el("button", "btn btn-primary btn-sm", "Send");
+    send.disabled = !getCard();
+    form.append(input, send);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!input.value.trim()) return;
+      send.disabled = true;
+      try {
+        await addComment(p.id, input.value);
+        loadComments(p, box);
+      } catch {
+        say("Could not post the comment.");
+        send.disabled = false;
+      }
+    };
+    box.replaceChildren(...(rows.length ? rows : [el("p", "muted", "No comments yet.")]), form);
+  }
+
+  // ── Reports ─────────────────────────────────────────────────────────────
+  let reporting = null;
+  function openReport(postId, commentId) {
+    reporting = { postId, commentId };
+    $("report-status").textContent = "";
+    $("report-dialog").showModal();
+  }
+  $("report-cancel").onclick = () => $("report-dialog").close();
+  $("report-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await report(reporting.postId, reporting.commentId, $("report-reason").value);
+      $("report-dialog").close();
+      say("Thank you. The report was sent.");
+    } catch {
+      $("report-status").textContent = "Could not send the report.";
+    }
+  };
+
+  // ── Share a run ─────────────────────────────────────────────────────────
+  let lastRun = null;
+  /** The run just finished on the Live monitor, ready to share. */
+  function setLastRun(run, trend) {
+    lastRun = { run, trend };
+  }
+  function shareLastRun() {
+    if (!lastRun) return;
+    const { run, trend } = lastRun;
+    openShareStats(
+      {
+        distanceM: run.distanceM, seconds: run.seconds, avgHr: run.avgHr, maxHr: run.maxHr, alerts: run.alerts,
+        avgTempC: run.avgTempC, endurance: run.endurance, zones: run.zones,
+      },
+      trend
+    );
+  }
+
   function openShare(session) {
     if (!getCard()) {
       if (confirm("Create your public card first: posts show your name and @handle. Go to your profile?")) location.hash = "#/profile";
@@ -199,6 +344,20 @@ export function initHome() {
       avgTempC: temps.length ? Math.round((temps.reduce((a, b) => a + b, 0) / temps.length) * 10) / 10 : null,
       trend: downsample(session.windows.map((w) => w.avgHr), 60),
     };
+    const zones = zoneSeconds(session.windows.map((w) => ({ seconds: w.seconds, hr: w.avgHr })), maxHeartRate(readProfile().age));
+    const driftBpm = drift(session.windows.map((w) => w.avgHr));
+    sharing.zones = zones;
+    sharing.endurance = enduranceScore({ zones, driftBpm, seconds: sharing.seconds });
+    const { trend, ...stats } = sharing;
+    openShareStats(stats, trend);
+  }
+
+  function openShareStats(stats, trend) {
+    if (!getCard()) {
+      if (confirm("Create your public card first: posts show your name and @handle. Go to your profile?")) location.hash = "#/profile";
+      return;
+    }
+    sharing = { ...stats, trend };
     const preview = $("share-preview");
     preview.replaceChildren(statsRow(sharing));
     const g = el("div", "post-graph");
@@ -229,5 +388,5 @@ export function initHome() {
     }
   };
 
-  return { enter, openShare };
+  return { enter, openShare, setLastRun, shareLastRun };
 }

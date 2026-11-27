@@ -561,6 +561,37 @@ export async function openFeed() {
   });
 }
 
+// ── Comments and reports ──────────────────────────────────────────────────
+const commentsCol = (postId) => collection(db, "posts", postId, "comments");
+
+export async function listComments(postId) {
+  const snap = await getDocs(query(commentsCol(postId), orderBy("createdAt"), limit(50)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data(), atMs: d.data().createdAt?.toMillis?.() ?? Date.now() }));
+}
+
+export function addComment(postId, text) {
+  if (!card) throw new Error("Create your public card first.");
+  return setDoc(doc(commentsCol(postId)), {
+    uid: uid(),
+    author: { name: card.displayName, handle: card.handle, avatar: card.avatar },
+    text: text.trim(),
+    createdAt: serverTimestamp(),
+    hidden: false,
+  });
+}
+
+export const deleteComment = (postId, id) => deleteDoc(doc(commentsCol(postId), id));
+export const hideComment = (postId, id, hidden) => updateDoc(doc(commentsCol(postId), id), { hidden });
+
+export const report = (postId, commentId, reason) =>
+  setDoc(doc(collection(db, "reports")), {
+    reporter: uid(),
+    postId,
+    ...(commentId ? { commentId } : {}),
+    reason,
+    createdAt: serverTimestamp(),
+  });
+
 async function deleteMyPosts() {
   const mine = await getDocs(query(collection(db, "posts"), where("ownerUid", "==", uid()))).catch(() => null);
   for (const d of mine?.docs ?? []) await deleteDoc(d.ref).catch(() => {});

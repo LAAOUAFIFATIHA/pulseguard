@@ -144,7 +144,9 @@ service cloud.firestore {
     // Summary numbers only: never raw ECG, location or AI answers.
     function validStats(st) {
       return st is map
-        && st.keys().hasOnly(['distanceM', 'seconds', 'avgHr', 'maxHr', 'alerts', 'avgTempC'])
+        && st.keys().hasOnly(['distanceM', 'seconds', 'avgHr', 'maxHr', 'alerts', 'avgTempC', 'endurance', 'zones'])
+        && optNum(st, 'endurance', 0, 100)
+        && st.get('zones', []) is list && st.get('zones', []).size() <= 5
         && st.distanceM is number && st.distanceM >= 0 && st.distanceM <= 200000
         && st.seconds is number && st.seconds > 0 && st.seconds <= 86400
         && numOrNull(st.get('avgHr', null), 0, 300)
@@ -491,6 +493,26 @@ service cloud.firestore {
              && !existsAfter(/databases/$(database)/documents/posts/$(pid)/likes/$(request.auth.uid))));
       allow delete: if verified() && resource.data.ownerUid == request.auth.uid;
 
+      // short comments; the post owner can hide one, the writer or the owner can delete it
+      match /comments/{cid} {
+        allow read: if canSeePost(get(/databases/$(database)/documents/posts/$(pid)).data);
+        allow create: if canSeePost(get(/databases/$(database)/documents/posts/$(pid)).data)
+          && request.resource.data.keys().hasOnly(['uid', 'author', 'text', 'createdAt', 'hidden'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.author.keys().hasOnly(['name', 'handle', 'avatar'])
+          && request.resource.data.author.handle == myCard().handle
+          && request.resource.data.author.name == myCard().displayName
+          && shortString(request.resource.data.text, 280)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.hidden == false;
+        allow update: if verified()
+          && get(/databases/$(database)/documents/posts/$(pid)).data.ownerUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden'])
+          && request.resource.data.hidden is bool;
+        allow delete: if verified() && (resource.data.uid == request.auth.uid
+          || get(/databases/$(database)/documents/posts/$(pid)).data.ownerUid == request.auth.uid);
+      }
+
       match /likes/{uid} {
         allow read: if canSeePost(get(/databases/$(database)/documents/posts/$(pid)).data);
         allow create: if isOwner(uid)
@@ -502,6 +524,17 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/posts/$(pid)).data.likeCount
              == get(/databases/$(database)/documents/posts/$(pid)).data.likeCount - 1;
       }
+    }
+
+    // ── Reports: write-only for users, reviewed in the console ───────────
+    match /reports/{rid} {
+      allow create: if verified()
+        && request.resource.data.keys().hasOnly(['reporter', 'postId', 'commentId', 'reason', 'createdAt'])
+        && request.resource.data.reporter == request.auth.uid
+        && shortString(request.resource.data.postId, 60)
+        && (request.resource.data.get('commentId', null) == null || shortString(request.resource.data.commentId, 60))
+        && request.resource.data.reason in ['spam', 'abuse', 'unsafe', 'other']
+        && request.resource.data.createdAt == request.time;
     }
   }
 }
