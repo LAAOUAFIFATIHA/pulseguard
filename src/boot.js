@@ -155,6 +155,20 @@ $("onboard-form").onsubmit = async (e) => {
 };
 $("onboard-signout").onclick = () => signOutAndClear();
 
+/** A message the user can act on when the app cannot start. */
+function bootError(err, stage) {
+  if (!navigator.onLine) return "You are offline. Connect to the internet, then tap Retry.";
+  if (stage === "app") return "The app could not start on this browser. Try Retry, or open it in Chrome.";
+  if (err?.code === "permission-denied") {
+    return "The database refused access. This happens when the site check (App Check) fails: tap Retry, or try a private tab.";
+  }
+  if (err?.code === "unavailable") return "Can't reach the database. Check your connection, then tap Retry.";
+  return "Couldn't load your account. Tap Retry.";
+}
+
+$("boot-retry").onclick = () => location.reload();
+$("boot-signout").onclick = () => signOutAndClear();
+
 // ── Route guard ───────────────────────────────────────────────────────────
 async function route(user) {
   if (!user || user.isAnonymous) {
@@ -169,20 +183,28 @@ async function route(user) {
     return show("verify-screen");
   }
   show("boot-screen");
+  $("boot-actions").hidden = $("boot-detail").hidden = true;
+  say("boot-message", "Loading PulseGuard…");
+  let stage = "account";
   try {
     if (!(await loadProfile())) {
       $("ob-name").value ||= user.displayName ?? "";
       return show("onboard-screen");
     }
+    stage = "app";
     if (!appLoaded) {
-      appLoaded = true;
       await import("./main.js");
+      appLoaded = true;
     }
     show("app");
   } catch (err) {
     console.error(err);
     show("boot-screen");
-    say("boot-message", "Couldn't load your account. Check your connection and reload the page.");
+    say("boot-message", bootError(err, stage));
+    // the exact cause, to report a problem
+    $("boot-detail").textContent = `${stage}: ${err?.code ?? err?.name ?? "error"}${err?.message ? " · " + err.message.slice(0, 160) : ""}`;
+    $("boot-detail").hidden = false;
+    $("boot-actions").hidden = false;
   }
 }
 

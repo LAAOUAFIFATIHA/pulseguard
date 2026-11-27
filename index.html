@@ -46,6 +46,11 @@
     <div id="boot-screen" class="splash">
       <svg class="logo pulse"><use href="#i-logo" /></svg>
       <p id="boot-message" role="status">Loading PulseGuard…</p>
+      <p id="boot-detail" class="hint mono" hidden></p>
+      <div id="boot-actions" class="actions" hidden>
+        <button type="button" id="boot-retry" class="btn btn-primary">Retry</button>
+        <button type="button" id="boot-signout" class="btn btn-outline">Sign out</button>
+      </div>
     </div>
 
     <div id="auth-screen" class="auth-layout" hidden>
