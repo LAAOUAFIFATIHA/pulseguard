@@ -52,6 +52,8 @@ import {
 } from "firebase/firestore";
 import { app } from "./firebase.js";
 import { createFeedMerger, PAGE } from "./feed.js";
+import { rateRun, applyDelta, decayed, ineligible, START } from "./rating.js";
+import { weekKey } from "./runsummary.js";
 import { searchName, parseQuery, prefixEnd, mergeResults, connectionId, otherUid, inviteId, SEARCH_LIMIT } from "./social.js";
 
 export const auth = getAuth(app);
@@ -256,6 +258,7 @@ const friendRef = (owner, friend) => doc(db, "users", owner, "friends", friend);
 const inviteRef = (id) => doc(db, "runInvites", id);
 
 let card = null;
+const CARD_EXTRAS = ["rating", "rank", "showRating", "pinned", "private", "weekKm", "weekKey", "challengesWon", "leaderboard", "cityKey"];
 export const getCard = () => card;
 
 export async function loadCard() {
@@ -283,6 +286,10 @@ export async function saveCard(input) {
     discoverable: !!input.discoverable,
     updatedAt: serverTimestamp(),
   };
+  for (const key of CARD_EXTRAS) {
+    const value = key in input ? input[key] : card?.[key];
+    if (value !== undefined && value !== null) next[key] = value;
+  }
   const batch = writeBatch(db);
   batch.set(profileRef(), next);
   if (card?.handle !== next.handle) {
@@ -403,6 +410,98 @@ export function watchRunInvites(onChange, onError) {
 }
 
 export const answerRunInvite = (invite, status) => updateDoc(inviteRef(invite.id), { status });
+
+// ── Runs and rating ───────────────────────────────────────────────────────
+const ratingRef = () => doc(db, "users", uid(), "rating", "current");
+const eventsCol = () => collection(db, "users", uid(), "ratingEvents");
+let ratingState = null;
+export const getRatingState = () => ratingState;
+
+export async function loadRating() {
+  const snap = await getDoc(ratingRef());
+  if (snap.exists()) {
+    ratingState = snap.data();
+  } else {
+    const init = { rating: START, peak: START, runsRated: 0, rank: "Rookie", lastEventId: "", lastRunAt: null, decayWeeks: 0, updatedAt: serverTimestamp() };
+    await setDoc(ratingRef(), init);
+    ratingState = { ...init };
+  }
+  return ratingState;
+}
+
+/** Shows the rating on the public card (or only the rank when hidden). */
+export async function syncCardRating(extra = {}) {
+  if (!card || !ratingState) return;
+  const show = (extra.showRating ?? card.showRating) !== false;
+  await saveCard({ ...card, ...extra, rating: show ? ratingState.rating : null, rank: ratingState.rank });
+}
+
+async function commitRating(eid, kind, refId, delta, reasons, { countRun = false, lastRunAt, decayWeeks } = {}) {
+  const before = ratingState.rating;
+  const next = applyDelta(ratingState, delta);
+  const state = {
+    rating: next.rating,
+    peak: next.peak,
+    runsRated: ratingState.runsRated + (countRun ? 1 : 0),
+    rank: next.rank,
+    lastEventId: eid,
+    lastRunAt: lastRunAt ?? ratingState.lastRunAt ?? null,
+    decayWeeks: decayWeeks ?? ratingState.decayWeeks ?? 0,
+    updatedAt: serverTimestamp(),
+  };
+  const batch = writeBatch(db);
+  batch.set(doc(eventsCol(), eid), { kind, refId, before, after: next.rating, delta: next.rating - before, reasons: reasons.slice(0, 10), createdAt: serverTimestamp() });
+  batch.set(ratingRef(), state);
+  await batch.commit();
+  ratingState = state;
+  await syncCardRating().catch((err) => console.warn("Card not updated", err.code));
+  return { before, after: state.rating };
+}
+
+export const saveRun = (sessionId, run) =>
+  setDoc(doc(sub("runs"), sessionId), { ...run, startAt: Timestamp.fromDate(run.startAt) });
+
+export async function listRuns(max = 200) {
+  const snap = await getDocs(query(sub("runs"), orderBy("startAt", "desc"), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data(), startMs: d.data().startAt.toMillis() }));
+}
+
+/** Rates a saved run once (the event id is the run id). */
+export async function rateFinishedRun(sessionId, run) {
+  if (!ratingState) await loadRating();
+  const since = Timestamp.fromMillis(Date.now() - 28 * 86400000);
+  const recent = await getDocs(query(sub("runs"), where("startAt", ">=", since))).then((x) => x.size).catch(() => 0);
+  const { delta, reasons } = rateRun(run, ratingState, { runsLast4Weeks: recent });
+  const res = await commitRating(`run_${sessionId}`, "run", sessionId, delta, reasons, {
+    countRun: !ineligible(run),
+    lastRunAt: Timestamp.now(),
+    decayWeeks: 0,
+  });
+  return { ...res, delta: res.after - res.before, reasons };
+}
+
+/** Adds a rating change from a challenge, once per challenge. */
+export async function rateChallenge(challengeId, delta, reasons) {
+  if (!ratingState) await loadRating();
+  return commitRating(`challenge_${challengeId}`, "challenge", challengeId, delta, reasons);
+}
+
+/** Slow decay after 14 days without a run, protected by the rank shield. */
+export async function applyDecay() {
+  if (!ratingState?.lastRunAt) return null;
+  const d = decayed(ratingState.rating, ratingState.lastRunAt.toMillis(), Date.now(), ratingState.decayWeeks ?? 0);
+  if (!d.weeks) return null;
+  const wk = weekKey();
+  const delta = d.rating - ratingState.rating;
+  return commitRating(`decay_${wk}`, "decay", wk, delta, [`${delta} inactivity (${d.weeks} week${d.weeks > 1 ? "s" : ""})`], {
+    decayWeeks: (ratingState.decayWeeks ?? 0) + d.weeks,
+  }).catch(() => null);
+}
+
+export async function listRatingEvents(max = 50) {
+  const snap = await getDocs(query(eventsCol(), orderBy("createdAt", "desc"), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data(), atMs: d.data().createdAt?.toMillis?.() ?? Date.now() }));
+}
 
 // ── Posts and feed ────────────────────────────────────────────────────────
 const postRef = (id) => doc(db, "posts", id);
@@ -557,8 +656,8 @@ export async function deleteAccount(password) {
     const team = await getTeam(code).catch(() => null);
     if (team?.ownerUid === user.uid) await deleteDoc(teamRef(code)).catch(() => {});
   }
-  for (const name of ["windows", "events"]) {
-    const { docs } = await getDocs(sub(name));
+  for (const name of ["windows", "events", "runs", "ratingEvents", "rating", "badges", "runPlans"]) {
+    const { docs } = await getDocs(sub(name)).catch(() => ({ docs: [] }));
     for (let i = 0; i < docs.length; i += 400) {
       const batch = writeBatch(db);
       docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));

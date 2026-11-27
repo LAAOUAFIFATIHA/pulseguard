@@ -494,3 +494,82 @@ test("likes: one per person, the counter moves only with your own like", async (
   b.update(doc(carol, "posts/fr"), { likeCount: increment(1) });
   await assertFails(b.commit());
 });
+
+// ── Runs and rating ─────────────────────────────────────────────────────────
+const runDoc = (extra = {}) => ({
+  startAt: t0, seconds: 1800, distanceM: 5000, avgHr: 140, maxHr: 165, alerts: 0, urgent: false,
+  noSignalPct: 0, maxSpeedKmh: 11, avgTempC: 34, avgHumidity: 60, zones: [0, 900, 600, 300, 0],
+  driftBpm: 5, endurance: 62, source: "simulated", startHour: 7, ...extra,
+});
+const ratingState = (rating, extra = {}) => ({
+  rating, peak: rating, runsRated: 0, rank: ["Rookie", "Pacer", "Racer"][Math.floor(rating / 1000)],
+  lastEventId: "", lastRunAt: null, decayWeeks: 0, updatedAt: serverTimestamp(), ...extra,
+});
+
+async function seedRating(rating = 500, extra = {}) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "users/alice/rating/current"), { ...ratingState(rating, extra), updatedAt: t0 });
+    await setDoc(doc(db, "users/alice/runs/s1"), runDoc());
+  });
+}
+
+function rateBatch(db, { eid, kind = "run", refId = "s1", before = 500, delta = 12, state = {} }) {
+  const b = writeBatch(db);
+  b.set(doc(db, `users/alice/ratingEvents/${eid}`), {
+    kind, refId, before, after: before + delta, delta, reasons: ["+12 performance"], createdAt: serverTimestamp(),
+  });
+  b.set(doc(db, "users/alice/rating/current"), {
+    ...ratingState(before + delta), peak: Math.max(before, before + delta), runsRated: kind === "run" ? 1 : 0,
+    lastEventId: eid, ...state,
+  });
+  return b.commit();
+}
+
+test("runs: own summaries only, valid fields, no raw data", async () => {
+  const alice = as("alice");
+  await assertSucceeds(setDoc(doc(alice, "users/alice/runs/s1"), runDoc()));
+  await assertFails(setDoc(doc(alice, "users/bob/runs/s1"), runDoc()));
+  await assertFails(setDoc(doc(alice, "users/alice/runs/s2"), runDoc({ samples: [1, 2] })));
+  await assertFails(setDoc(doc(alice, "users/alice/runs/s3"), runDoc({ zones: [1, 2] })));
+  await assertFails(updateDoc(doc(alice, "users/alice/runs/s1"), { distanceM: 99999 }));
+});
+
+test("rating starts at 500 and moves only with an event for a real run", async () => {
+  const alice = as("alice");
+  await assertFails(setDoc(doc(alice, "users/alice/rating/current"), ratingState(900)));
+  await assertSucceeds(setDoc(doc(alice, "users/alice/rating/current"), ratingState(500)));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users/alice/runs/s1"), runDoc()));
+  await assertFails(updateDoc(doc(alice, "users/alice/rating/current"), { rating: 2000, rank: "Racer", peak: 2000, updatedAt: serverTimestamp() }));
+  await assertSucceeds(rateBatch(alice, { eid: "run_s1" }));
+});
+
+test("rating events: once per run, at most 60, no losses from runs, real run only", async () => {
+  await seedRating();
+  const alice = as("alice");
+  await assertFails(rateBatch(alice, { eid: "run_s1", delta: 61 }));
+  await assertFails(rateBatch(alice, { eid: "run_s1", delta: -5 }));
+  await assertFails(rateBatch(alice, { eid: "run_nope", refId: "nope" }));
+  await assertFails(rateBatch(alice, { eid: "run_other", refId: "s1" }));
+  await assertSucceeds(rateBatch(alice, { eid: "run_s1" }));
+  await assertFails(rateBatch(alice, { eid: "run_s1", before: 512 })); // the same run twice
+  await assertFails(setDoc(doc(as("mallory"), "users/alice/ratingEvents/run_x"), { kind: "run" }));
+  await assertFails(getDoc(doc(as("mallory"), "users/alice/rating/current")));
+});
+
+test("decay respects the rank shield", async () => {
+  await seedRating(1012, { rank: "Pacer" });
+  const alice = as("alice");
+  await assertFails(rateBatch(alice, { eid: "decay_w1", kind: "decay", refId: "w1", before: 1012, delta: -20 }));
+  await assertSucceeds(rateBatch(alice, { eid: "decay_w1", kind: "decay", refId: "w1", before: 1012, delta: -10 }));
+});
+
+test("the public card shows only the real rating and rank", async () => {
+  await seedCards();
+  await seedRating(500);
+  const alice = as("alice");
+  await assertSucceeds(setDoc(doc(alice, "profiles/alice"), { ...card("alice"), rating: 500, rank: "Rookie" }));
+  await assertFails(setDoc(doc(alice, "profiles/alice"), { ...card("alice"), rating: 4000, rank: "Grand Master" }));
+  await assertFails(setDoc(doc(alice, "profiles/alice"), { ...card("alice"), rank: "Legend" }));
+  await assertSucceeds(setDoc(doc(alice, "profiles/alice"), { ...card("alice"), rank: "Rookie", showRating: false }));
+});

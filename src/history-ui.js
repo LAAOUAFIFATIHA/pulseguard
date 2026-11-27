@@ -142,6 +142,7 @@ export function createHistory({ sampleRate, onShare }) {
       sessionId = newSessionId();
     },
     enterPage: refresh,
+    sessionId: () => sessionId,
     leavePage: () => replay.stop(),
   };
 }

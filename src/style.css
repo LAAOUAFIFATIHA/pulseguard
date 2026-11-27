@@ -458,6 +458,36 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
   .post { padding: 14px 14px 10px; }
 }
 
+/* ── Rating ── */
+.speed-select { flex: 0 1 140px !important; }
+.side-rank { display: inline-grid; margin-left: -6px; }
+.side-rank:empty { display: none; }
+.rating-hero { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; background: linear-gradient(120deg, var(--p-cosmos), var(--p-wine) 60%, var(--p-cordovan)); border: 0; color: var(--on-dark-1); }
+.rating-hero h2 { color: #fff; font-size: 28px; }
+.rating-hero .eyebrow, .rating-hero .hint, .rating-hero .check span { color: var(--on-dark-2); }
+.rating-main { flex: 1 1 280px; display: flex; flex-direction: column; gap: 8px; }
+.rating-number strong { font-size: 22px; color: #fff; }
+.rank-badge { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.25)); flex: none; }
+.progress { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--p-coral), #fff); border-radius: 999px; transition: width 0.6s; }
+.rating-chart { width: 100%; height: 180px; }
+.rating-chart .line { fill: none; stroke: var(--p-redwood); stroke-width: 2.5; }
+.rating-chart .area { fill: var(--accent-soft); }
+.rating-chart circle { fill: var(--p-redwood); }
+.rating-chart-box:empty::before { content: "Your chart appears after two rating changes."; color: var(--muted); font-size: 14px; }
+.changes { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.changes li { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 14px; }
+.changes strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.changes .up { color: var(--ok); }
+.changes .down { color: var(--bad); }
+.rank-chip { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--rank, var(--p-coral)); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.result-dialog .result-body { padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.result-delta { font-size: 34px; font-weight: 800; color: var(--text-h); }
+.result-delta.up { color: var(--ok); }
+.result-reasons { list-style: none; padding: 0; margin: 4px 0; font-size: 14px; color: var(--text); }
+.result-rest { background: var(--bad-soft); color: var(--bad); font-weight: 600; padding: 8px 12px; border-radius: var(--radius-sm); }
+.confetti { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+
 /* ── Profile and settings ───────────────────────────────────────────── */
 .profile-hero { display: flex; align-items: center; gap: 18px; }
 .profile-hero h2 { font-size: 22px; }

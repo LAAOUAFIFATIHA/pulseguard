@@ -161,10 +161,60 @@ service cloud.firestore {
         && d.likeCount is int && d.likeCount >= 0;
     }
 
+    // ── Runs and rating ──────────────────────────────────────────────────
+    function ratingRank(r) {
+      return r < 1000 ? 'Rookie' : r < 2000 ? 'Pacer' : r < 3000 ? 'Racer'
+        : r < 4000 ? 'Master' : r < 5000 ? 'Grand Master' : 'Legend';
+    }
+    function ratingPath(uid) {
+      return /databases/$(database)/documents/users/$(uid)/rating/current;
+    }
+    function eventPath(uid, eid) {
+      return /databases/$(database)/documents/users/$(uid)/ratingEvents/$(eid);
+    }
+    function optNum(d, key, lo, hi) {
+      return !(key in d) || d[key] == null || (d[key] is number && d[key] >= lo && d[key] <= hi);
+    }
+    function validRun(d) {
+      return d.keys().hasOnly(['startAt', 'seconds', 'distanceM', 'avgHr', 'maxHr', 'alerts', 'urgent', 'noSignalPct',
+                               'maxSpeedKmh', 'avgTempC', 'avgHumidity', 'zones', 'driftBpm', 'endurance', 'source',
+                               'startHour', 'planId', 'adherence', 'airTempC'])
+        && d.startAt is timestamp && d.startAt <= request.time
+        && d.seconds is number && d.seconds > 0 && d.seconds <= 86400
+        && d.distanceM is number && d.distanceM >= 0 && d.distanceM <= 300000
+        && optNum(d, 'avgHr', 0, 300) && optNum(d, 'maxHr', 0, 300)
+        && d.alerts is int && d.alerts >= 0
+        && d.urgent is bool
+        && optNum(d, 'noSignalPct', 0, 1) && optNum(d, 'maxSpeedKmh', 0, 100)
+        && optNum(d, 'avgTempC', 0, 60) && optNum(d, 'avgHumidity', 0, 100) && optNum(d, 'airTempC', -30, 60)
+        && d.zones is list && d.zones.size() == 5
+        && optNum(d, 'driftBpm', -100, 100) && optNum(d, 'endurance', 0, 100)
+        && d.source in ['simulated', 'sensor']
+        && optNum(d, 'startHour', 0, 23) && optNum(d, 'adherence', 0, 1)
+        && (!('planId' in d) || d.planId == null || shortString(d.planId, 40));
+    }
+    function validRatingState(n) {
+      return n.keys().hasOnly(['rating', 'peak', 'runsRated', 'rank', 'lastEventId', 'lastRunAt', 'decayWeeks', 'updatedAt'])
+        && n.rating is int && n.rating >= 0
+        && n.peak is int && n.runsRated is int && n.runsRated >= 0
+        && n.rank == ratingRank(n.rating)
+        && n.lastEventId is string && n.decayWeeks is int
+        && (n.lastRunAt == null || n.lastRunAt is timestamp)
+        && n.updatedAt == request.time;
+    }
+
     // A public card: never email, health data, raw ECG or AI answers.
     function validCard(d, uid) {
       return d.keys().hasOnly(['displayName', 'searchName', 'handle', 'avatar', 'bio', 'city',
-                               'runnerLevel', 'discoverable', 'updatedAt'])
+                               'runnerLevel', 'discoverable', 'updatedAt', 'rating', 'rank', 'showRating',
+                               'pinned', 'private', 'weekKm', 'weekKey', 'challengesWon', 'leaderboard', 'cityKey'])
+        && (!('rating' in d) || d.rating == getAfter(ratingPath(uid)).data.rating)
+        && (!('rank' in d) || d.rank == getAfter(ratingPath(uid)).data.rank)
+        && d.get('showRating', true) is bool && d.get('private', false) is bool && d.get('leaderboard', false) is bool
+        && d.get('pinned', []) is list && d.get('pinned', []).size() <= 3
+        && optNum(d, 'weekKm', 0, 1000) && d.get('weekKey', '') is string && d.get('weekKey', '').size() <= 10
+        && d.get('challengesWon', 0) is int
+        && d.get('cityKey', '') is string && d.get('cityKey', '').size() <= 40
         && d.keys().hasAll(['displayName', 'searchName', 'handle', 'avatar', 'discoverable', 'updatedAt'])
         && shortString(d.displayName, 60)
         && d.searchName == d.displayName.trim().lower()
@@ -232,6 +282,55 @@ service cloud.firestore {
           && getAfter(connectionPath(uid, fid)).data.status == 'accepted';
         allow delete: if verified() && (request.auth.uid == uid || request.auth.uid == fid)
           && !existsAfter(connectionPath(uid, fid));
+      }
+
+      // finished runs (summaries only), one document per session
+      match /runs/{rid} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && validRun(request.resource.data);
+      }
+
+      // rating: starts at 500 and changes only together with a rating event
+      match /rating/{doc} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && doc == 'current' && validRatingState(request.resource.data)
+          && request.resource.data.rating == 500 && request.resource.data.peak == 500
+          && request.resource.data.runsRated == 0 && request.resource.data.lastEventId == '';
+        allow update: if isOwner(uid) && doc == 'current' && validRatingState(request.resource.data)
+          && request.resource.data.lastEventId != resource.data.lastEventId
+          && !exists(eventPath(uid, request.resource.data.lastEventId))
+          && getAfter(eventPath(uid, request.resource.data.lastEventId)).data.before == resource.data.rating
+          && getAfter(eventPath(uid, request.resource.data.lastEventId)).data.after == request.resource.data.rating
+          && request.resource.data.peak == (request.resource.data.rating > resource.data.peak
+               ? request.resource.data.rating : resource.data.peak)
+          && (request.resource.data.runsRated == resource.data.runsRated
+              || request.resource.data.runsRated == resource.data.runsRated + 1);
+      }
+
+      // why the rating changed; once per run, challenge or week of inactivity
+      match /ratingEvents/{eid} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['kind', 'refId', 'before', 'after', 'delta', 'reasons', 'createdAt'])
+          && request.resource.data.delta is int
+          && request.resource.data.after == request.resource.data.before + request.resource.data.delta
+          && request.resource.data.delta <= 60 && request.resource.data.delta >= -60
+          && request.resource.data.reasons is list && request.resource.data.reasons.size() <= 10
+          && request.resource.data.createdAt == request.time
+          && getAfter(ratingPath(uid)).data.lastEventId == eid
+          && shortString(request.resource.data.refId, 60)
+          && (request.resource.data.kind == 'run'
+                ? eid == 'run_' + request.resource.data.refId && request.resource.data.delta >= 0
+                  && exists(/databases/$(database)/documents/users/$(uid)/runs/$(request.resource.data.refId))
+            : request.resource.data.kind == 'challenge'
+                ? eid == 'challenge_' + request.resource.data.refId && request.resource.data.delta >= 0
+                  && uid in get(/databases/$(database)/documents/challenges/$(request.resource.data.refId)).data.users
+                  && get(/databases/$(database)/documents/challenges/$(request.resource.data.refId)).data.status in ['accepted', 'finished']
+            : request.resource.data.kind == 'decay'
+                && eid == 'decay_' + request.resource.data.refId
+                && request.resource.data.delta <= 0
+                // the rank shield: never below the start of the current rank
+                && request.resource.data.after >= math.floor(request.resource.data.before / 1000) * 1000);
       }
 
       match /events/{id} {

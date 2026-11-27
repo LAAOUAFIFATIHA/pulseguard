@@ -12,6 +12,9 @@ import { buildCoachPrompt, buildReportPrompt, buildCheckPrompt } from "./prompts
 import { initTeamAlerts } from "./team-alerts.js";
 import { initFriends } from "./friends.js";
 import { initHome } from "./home.js";
+import { initRating } from "./ratingui.js";
+import { buildRun, maxHeartRate } from "./runsummary.js";
+import { saveRun, rateFinishedRun } from "./db.js";
 import { createScheduler, ruleLevel, parseVerdict, worst } from "./healthcheck.js";
 
 const $ = (id) => document.getElementById(id);
@@ -173,6 +176,7 @@ async function runAI(kind, prompt) {
 let lastAutoCoach = -Infinity;
 const history = createHistory({ sampleRate: 250, onShare: (s) => home.openShare(s) });
 const home = initHome();
+const ratingPage = initRating();
 const status = createStatus();
 const profilePage = initProfile({ status, onChange: (p) => monitor.setRules(personalRules(p)) });
 const monitor = createMonitor({
@@ -356,8 +360,33 @@ initRouter({
     }
     if (route === "friends") friends.enter();
     if (route === "home") home.enter();
+    if (route === "rating") ratingPage.enter();
   },
 });
+
+// ── Finish a run: save it, rate it, show the result ─────────────────────────
+$("finish-run").onclick = async () => {
+  if (!monitor.hasData()) {
+    $("check-message").textContent = "Start a run first: nothing to finish yet.";
+    return;
+  }
+  monitor.stop();
+  const sessionId = history.sessionId();
+  const run = buildRun(monitor.runData(), { maxHr: maxHeartRate(readProfile().age) });
+  $("finish-run").disabled = true;
+  try {
+    await saveRun(sessionId, run);
+    const result = await rateFinishedRun(sessionId, run);
+    ratingPage.showResult(result, run);
+    window.dispatchEvent(new CustomEvent("run-finished", { detail: { sessionId, run, result } }));
+  } catch (err) {
+    console.error(err);
+    $("check-message").textContent = "The run could not be saved. Check your connection.";
+  } finally {
+    $("finish-run").disabled = false;
+    monitor.reset();
+  }
+};
 
 // ── Automatic start ────────────────────────────────────────────────────────
 const remember = (id, key) => {

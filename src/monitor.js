@@ -36,7 +36,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
     sensors = new SensorSimulator();
     motionDetector = new MotionDetector();
     body = { motion: null, tempC: null, humidity: null, speedKmh: 0 };
-    totals = { n: 0, moving: 0, tempC: 0, humidity: 0, distanceM: 0 };
+    totals = { n: 0, moving: 0, tempC: 0, humidity: 0, distanceM: 0, maxSpeedKmh: 0 };
     snap = rhythm.snapshot(null, null);
     chart.clear();
     chart.draw();
@@ -47,7 +47,8 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
 
   function tick() {
     const now = performance.now();
-    const dt = Math.min(1, (now - lastTick) / 1000); // cap catch-up when the tab was hidden
+    // demo speed makes simulated time run faster (x10 = a 5-minute run in 30 s)
+    const dt = Math.min(1, (now - lastTick) / 1000) * Number($("sim-speed").value || 1);
     lastTick = now;
     for (const v of sim.generate(dt)) {
       recorder?.sample(v, {
@@ -73,6 +74,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
       totals.tempC += r.tempC;
       totals.humidity += r.humidity;
       totals.distanceM += (r.speedKmh ?? 0) / 3.6;
+      totals.maxSpeedKmh = Math.max(totals.maxSpeedKmh, r.speedKmh ?? 0);
       if (body.motion === "moving") totals.moving++;
     }
     recorder?.sensors({ accel, readings });
@@ -175,5 +177,18 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
         : null,
     }),
     hasData: () => rhythm.hrLog.length > 0,
+    stop,
+    reset,
+    /** Everything needed to save and rate the finished run. */
+    runData: () => ({
+      startedAt,
+      seconds: sim.t,
+      distanceM: totals.distanceM,
+      maxSpeedKmh: totals.maxSpeedKmh,
+      avgTempC: totals.n ? totals.tempC / totals.n : null,
+      avgHumidity: totals.n ? totals.humidity / totals.n : null,
+      hrLog: rhythm.hrLog.slice(),
+      events: rhythm.events.map((e) => ({ ...e })),
+    }),
   };
 }
