@@ -33,7 +33,11 @@ Sign out is always available in the sidebar (or the menu on phones) and in the t
 
 ### Teams and privacy
 
-Joining a team is opt-in and needs the 8-character invite code. Members see each other's display name, role, live status, current and last normal heart rate, a 30-point heart-rate trend and last session summary, updated at most every 15 s while monitoring. They never see email, profile details, raw ECG or AI answers. Untick **Share my live status** or leave the team to stop sharing. The team owner can remove members. Anyone who has the code can join, so share it only with your team.
+Joining a team is opt-in and needs the 8-character invite code. Members see each other's display name, role, live status, current and last normal heart rate, a 30-point heart-rate trend and last session summary, updated at most every 15 s while monitoring. They never see email, profile details, raw ECG or AI answers. Untick **Share my live status** or leave the team to stop sharing. The team owner can remove members. Anyone who has the code can join a free team, so share it only with your team.
+
+### Discover and premium teams
+
+A team is private unless its owner publishes it (**Directory settings**). Published free teams can be joined in one step. Premium teams are run by an account with the coach role: athletes send a request (display name only) and join after the coach approves; the security rules enforce this. **No payment is processed** (the price is only text), and coach roles are not verified.
 
 ## Accounts and data
 

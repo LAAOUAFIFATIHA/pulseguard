@@ -3,7 +3,7 @@ import { test, before, after, beforeEach } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, serverTimestamp, Timestamp,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, serverTimestamp, Timestamp, query, where,
 } from "firebase/firestore";
 import { summarize } from "../../src/summary.js";
 
@@ -156,4 +156,53 @@ test("members leave; only the owner removes others", async () => {
   await seedTeam();
   await assertSucceeds(deleteDoc(doc(as("alice"), `teams/${CODE}/members/alice`)));
   await assertFails(deleteDoc(doc(as("alice"), `teams/${CODE}`)));
+});
+
+// ── Directory and premium teams ────────────────────────────────────────────
+const PREMIUM = "PREM2345";
+
+async function seedDirectory() {
+  await seedTeam(); // CODE: private free team
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "users/coach"), { ...profile({ role: "coach" }), updatedAt: t0 });
+    await setDoc(doc(db, "users/alice"), { ...profile(), updatedAt: t0 });
+    await setDoc(doc(db, `teams/${PREMIUM}`), {
+      name: "Pro", ownerUid: "coach", createdAt: t0, listed: true, tier: "premium", ownerName: "Coach",
+    });
+  });
+}
+const request = (extra = {}) => ({ displayName: "Bob", status: "pending", createdAt: serverTimestamp(), ...extra });
+const listed = (db) => getDocs(query(collection(db, "teams"), where("listed", "==", true)));
+
+test("only published teams can be listed", async () => {
+  await seedDirectory();
+  await assertSucceeds(listed(as("bob")));
+  await assertFails(getDocs(collection(as("bob"), "teams")));
+  await assertFails(listed(as("bob", false)));
+});
+
+test("a premium team cannot be joined without the coach's approval", async () => {
+  await seedDirectory();
+  const bob = as("bob");
+  await assertFails(setDoc(doc(bob, `teams/${PREMIUM}/members/bob`), member("Bob")));
+  await assertFails(setDoc(doc(bob, `teams/${PREMIUM}/requests/bob`), request({ status: "approved" })));
+  await assertSucceeds(setDoc(doc(bob, `teams/${PREMIUM}/requests/bob`), request()));
+  await assertFails(updateDoc(doc(bob, `teams/${PREMIUM}/requests/bob`), { status: "approved" }));
+  await assertFails(setDoc(doc(bob, `teams/${PREMIUM}/members/bob`), member("Bob")));
+  await assertFails(getDocs(collection(as("alice"), `teams/${PREMIUM}/requests`)));
+  const coach = as("coach");
+  await assertSucceeds(getDocs(collection(coach, `teams/${PREMIUM}/requests`)));
+  await assertSucceeds(updateDoc(doc(coach, `teams/${PREMIUM}/requests/bob`), { status: "approved" }));
+  await assertSucceeds(setDoc(doc(bob, `teams/${PREMIUM}/members/bob`), member("Bob")));
+});
+
+test("only a coach can make a team premium, and only the owner publishes it", async () => {
+  await seedDirectory();
+  await assertFails(updateDoc(doc(as("alice"), `teams/${CODE}`), { listed: true }));
+  await assertSucceeds(updateDoc(doc(as("coach"), `teams/${CODE}`), { listed: true, tier: "premium" }));
+  const alice = as("alice");
+  await assertFails(setDoc(doc(alice, "teams/ALCE2345"), {
+    name: "Mine", ownerUid: "alice", createdAt: serverTimestamp(), tier: "premium",
+  }));
 });

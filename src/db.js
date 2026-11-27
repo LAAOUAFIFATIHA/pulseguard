@@ -35,6 +35,8 @@ import {
   terminate,
   clearIndexedDbPersistence,
   onSnapshot,
+  updateDoc,
+  where,
   Timestamp,
   query,
   orderBy,
@@ -146,6 +148,43 @@ export async function getTeam(code) {
   return snap.exists() ? { id: code, ...snap.data() } : null;
 }
 
+const requestRef = (code, id = uid()) => doc(db, "teams", code, "requests", id);
+
+/** Teams their owners published. */
+export async function listPublicTeams(max = 30) {
+  const snap = await getDocs(query(collection(db, "teams"), where("listed", "==", true), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Directory settings, owner only. */
+export const updateTeamListing = (code, { listed, tier, description, price }) =>
+  updateDoc(teamRef(code), {
+    listed,
+    tier,
+    description: description.trim(),
+    price: tier === "premium" ? price.trim() : "",
+    ownerName: profile.displayName,
+  });
+
+/** "pending", "approved" or null for the signed-in user. */
+export async function myRequest(code) {
+  const snap = await getDoc(requestRef(code));
+  return snap.exists() ? snap.data().status : null;
+}
+export const requestToJoin = (code) =>
+  setDoc(requestRef(code), { displayName: profile.displayName, status: "pending", createdAt: serverTimestamp() });
+export const cancelRequest = (code) => deleteDoc(requestRef(code));
+
+export function watchRequests(code, onChange, onError) {
+  return onSnapshot(
+    collection(db, "teams", code, "requests"),
+    (snap) => onChange(snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((r) => r.status === "pending")),
+    onError
+  );
+}
+export const approveRequest = (code, id) => updateDoc(requestRef(code, id), { status: "approved" });
+export const declineRequest = (code, id) => deleteDoc(requestRef(code, id));
+
 function memberCard() {
   return {
     displayName: profile.displayName,
@@ -167,6 +206,7 @@ export async function createTeam(name) {
 export async function joinTeam(code) {
   await setDoc(memberRef(code), memberCard());
   await setTeamId(code);
+  await deleteDoc(requestRef(code)).catch(() => {}); // an approved application is used up
 }
 
 export async function leaveTeam() {
@@ -246,6 +286,11 @@ export async function deleteAccount(password) {
     await reauthenticateWithPopup(user, new GoogleAuthProvider());
   }
   await user.getIdToken(true);
+
+  // pending applications to published teams
+  for (const t of await listPublicTeams().catch(() => [])) {
+    if (t.tier === "premium") await deleteDoc(requestRef(t.id)).catch(() => {});
+  }
 
   const code = profile?.teamId;
   if (code) {

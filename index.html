@@ -345,6 +345,22 @@
             </div>
           </div>
 
+          <div id="team-discover" class="card" hidden>
+            <div class="card-head">
+              <div>
+                <h2>Discover teams</h2>
+                <p class="muted">Free teams are open to everyone. Premium teams are run by a coach who approves each athlete.</p>
+              </div>
+              <div class="chips" role="group" aria-label="Filter teams">
+                <button type="button" class="chip" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" class="chip" data-filter="free" aria-pressed="false">Free</button>
+                <button type="button" class="chip" data-filter="premium" aria-pressed="false">Premium coach</button>
+              </div>
+            </div>
+            <div id="team-directory" class="directory"></div>
+            <p class="hint">No payment is taken in PulseGuard. A price shown on a premium team is arranged with the coach directly. Coach roles are not verified.</p>
+          </div>
+
           <div id="team-view" hidden>
             <div class="card team-head">
               <div>
@@ -356,6 +372,23 @@
                 <button type="button" id="team-leave" class="btn btn-outline">Leave team</button>
               </div>
             </div>
+            <div id="team-requests" class="card requests" hidden>
+              <h3>Join requests</h3>
+              <ul id="request-list" class="request-list"></ul>
+            </div>
+            <details id="team-listing" class="card listing" hidden>
+              <summary>Directory settings</summary>
+              <form id="listing-form" class="form narrow">
+                <label class="check"><input type="checkbox" id="listing-listed" /> <span>Show this team in Discover (anyone signed in can see its name, description and your display name)</span></label>
+                <label for="listing-tier">Type</label>
+                <select id="listing-tier"><option value="free">Free</option><option value="premium">Premium (I approve each athlete)</option></select>
+                <label for="listing-description">Description</label>
+                <input id="listing-description" maxlength="200" placeholder="Who is this team for?" />
+                <label for="listing-price">Price shown (premium only)</label>
+                <input id="listing-price" maxlength="30" placeholder="e.g. 100 MAD / month" />
+                <button type="submit" class="btn btn-primary">Save</button>
+              </form>
+            </details>
             <div id="team-members" class="member-grid"></div>
           </div>
           <p id="team-status" class="hint" role="status"></p>

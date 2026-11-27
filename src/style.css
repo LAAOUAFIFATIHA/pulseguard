@@ -318,6 +318,21 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .facts dd { margin: 0; color: var(--text-h); text-align: right; }
 .privacy-box { background: var(--info-soft); border-color: transparent; box-shadow: none; }
 
+.directory { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin-bottom: 12px; }
+.listing-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.listing-card.premium { border-color: var(--warn); background: linear-gradient(180deg, var(--warn-soft), var(--surface-2) 55%); }
+.listing-card .btn { margin-top: auto; }
+.listing-text { font-size: 13px; overflow-wrap: anywhere; }
+.listing-price { font-weight: 700; color: var(--text-h); }
+.premium-badge { background: var(--warn-soft); color: var(--warn); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.requests, .listing { margin-top: 18px; }
+.listing summary { cursor: pointer; font-weight: 650; color: var(--text-h); }
+.listing form { margin-top: 12px; }
+.request-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.request-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.request-list span { flex: 1; color: var(--text-h); font-weight: 600; }
+
 /* ── Profile and settings ───────────────────────────────────────────── */
 .profile-hero { display: flex; align-items: center; gap: 18px; }
 .profile-hero h2 { font-size: 22px; }

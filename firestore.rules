@@ -76,9 +76,31 @@ service cloud.firestore {
     }
 
     function validTeam(d) {
-      return d.keys().hasOnly(['name', 'ownerUid', 'createdAt'])
+      return d.keys().hasOnly(['name', 'ownerUid', 'createdAt', 'listed', 'tier', 'description',
+                               'price', 'ownerName'])
         && shortString(d.name, 40)
-        && d.ownerUid == request.auth.uid;
+        && d.ownerUid == request.auth.uid
+        && d.get('listed', false) is bool
+        && d.get('tier', 'free') in ['free', 'premium']
+        && d.get('description', '') is string && d.get('description', '').size() <= 200
+        && d.get('price', '') is string && d.get('price', '').size() <= 30
+        && (!('ownerName' in d) || shortString(d.ownerName, 60))
+        // only a profile with the coach role can run a premium team
+        && (d.get('tier', 'free') != 'premium'
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach');
+    }
+
+    function team(code) {
+      return get(/databases/$(database)/documents/teams/$(code)).data;
+    }
+    function ownsTeam(code) {
+      return verified() && team(code).ownerUid == request.auth.uid;
+    }
+    // Free teams are open; premium teams need the owner's approval.
+    function mayJoin(code, uid) {
+      return team(code).get('tier', 'free') == 'free'
+        || team(code).ownerUid == uid
+        || get(/databases/$(database)/documents/teams/$(code)/requests/$(uid)).data.status == 'approved';
     }
 
     // What a member shares with their team: summaries only.
@@ -122,10 +144,12 @@ service cloud.firestore {
       }
     }
 
-    // Teams: joining needs the 8-character invite code. Members see each
-    // other's shared summary; nobody can list teams.
+    // Teams: joined with the 8-character code, or from the directory when the
+    // owner publishes the team. Members see each other's shared summary.
     match /teams/{code} {
       allow get: if verified();
+      // the directory: only teams their owner chose to publish
+      allow list: if verified() && resource.data.listed == true;
       allow create: if verified() && teamCode(code)
         && validTeam(request.resource.data)
         && request.resource.data.createdAt == request.time;
@@ -139,12 +163,27 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/teams/$(code)/members/$(request.auth.uid));
         allow create: if isOwner(uid)
           && exists(/databases/$(database)/documents/teams/$(code))
+          && mayJoin(code, uid)
           && validMember(request.resource.data);
         allow update: if isOwner(uid) && validMember(request.resource.data)
           && request.resource.data.joinedAt == resource.data.joinedAt;
         // a member leaves, or the team owner removes them
-        allow delete: if isOwner(uid)
-          || (verified() && get(/databases/$(database)/documents/teams/$(code)).data.ownerUid == request.auth.uid);
+        allow delete: if isOwner(uid) || ownsTeam(code);
+      }
+
+      // Applications to a premium team. Only the owner can approve.
+      match /requests/{uid} {
+        allow read: if isOwner(uid) || ownsTeam(code);
+        allow create: if isOwner(uid)
+          && team(code).get('tier', 'free') == 'premium'
+          && request.resource.data.keys().hasOnly(['displayName', 'status', 'createdAt'])
+          && shortString(request.resource.data.displayName, 60)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.createdAt == request.time;
+        allow update: if ownsTeam(code)
+          && request.resource.data.status == 'approved'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        allow delete: if isOwner(uid) || ownsTeam(code);
       }
     }
   }
