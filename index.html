@@ -34,6 +34,8 @@
         <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.5l2.5 1.5M9.5 3h5M18.5 6.5l1.2-1.2"/></symbol>
         <symbol id="i-heart-o" viewBox="0 0 24 24"><path d="M12 20s-7.2-4.5-9-9C1.6 7.6 3.8 4.5 7.2 4.5c2 0 3.3 1.1 4.8 2.9 1.5-1.8 2.8-2.9 4.8-2.9 3.4 0 5.6 3.1 4.2 6.5-1.8 4.5-9 9-9 9z"/></symbol>
         <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.4 3 14.6 0 18M12 3c-3 3.4-3 14.6 0 18"/></symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/></symbol>
+        <symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5.5"/><path d="M8.5 10.5 6 3h4l2 4 2-4h4l-2.5 7.5M12 12.5l.9 1.8 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/></symbol>
         <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
         <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5"/><path d="M5 13v6.5h14V13"/></symbol>
         <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
@@ -189,6 +191,14 @@
         </div>
       </dialog>
       <canvas id="confetti" class="confetti" hidden></canvas>
+      <dialog id="people-dialog" class="ig-dialog" aria-labelledby="people-title">
+        <div class="ig-dialog-head"><h2 id="people-title">Followers</h2><button type="button" id="people-close" class="btn btn-ghost btn-sm" aria-label="Close">✕</button></div>
+        <ul id="people-list" class="ig-people"></ul>
+      </dialog>
+      <dialog id="post-dialog" class="ig-dialog ig-post-dialog" aria-label="Run">
+        <div class="ig-dialog-head"><span></span><button type="button" id="post-close" class="btn btn-ghost btn-sm" aria-label="Close">✕</button></div>
+        <div id="post-view" class="feed"></div>
+      </dialog>
       <dialog id="challenge-dialog" aria-labelledby="ch-title">
         <form id="ch-form" class="form">
           <h2 id="ch-title">Challenge a friend</h2>
@@ -696,7 +706,7 @@
 
         <!-- Profile -->
         <section class="page" data-page="profile" hidden>
-          <div class="card pf-card" id="pf-header"></div>
+          <div class="card ig-card" id="pf-header"></div>
           <div class="tabs" role="tablist" data-tabs="profile"><button type="button" role="tab" data-tab="posts" aria-selected="true">Posts</button><button type="button" role="tab" data-tab="records" aria-selected="false">Records</button><button type="button" role="tab" data-tab="badges" aria-selected="false">Badges</button><button type="button" role="tab" data-tab="details" aria-selected="false">Details</button></div>
           <div data-panels="profile">
             <div data-panel="posts" id="pf-posts" class="feed"></div>
@@ -780,7 +790,7 @@
 
         <!-- Another runner -->
         <section class="page" data-page="runner" hidden>
-          <div class="card pf-card" id="rn-header"></div>
+          <div class="card ig-card" id="rn-header"></div>
           <div class="tabs" role="tablist" data-tabs="runner"><button type="button" role="tab" data-tab="posts" aria-selected="true">Posts</button><button type="button" role="tab" data-tab="records" aria-selected="false">Records</button><button type="button" role="tab" data-tab="badges" aria-selected="false">Badges</button></div>
           <div data-panels="runner">
             <div data-panel="posts" id="rn-posts" class="feed"></div>

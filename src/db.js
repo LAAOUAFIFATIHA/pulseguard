@@ -1017,3 +1017,9 @@ export async function friendsPlans() {
   ));
   return all.flat();
 }
+
+/** Uids in someone's followers or following list (rules: same as their network). */
+export async function networkList(owner, coll) {
+  const snap = await getDocs(query(collection(db, "users", owner, coll), limit(200)));
+  return snap.docs.map((d) => d.id);
+}
