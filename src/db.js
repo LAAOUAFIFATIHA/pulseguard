@@ -987,3 +987,33 @@ export async function setPinned(ids) {
 export async function friendCount() {
   return getCountFromServer(sub("friends")).then((x) => x.data().count).catch(() => 0);
 }
+
+// ── Run plans (Part F) ────────────────────────────────────────────────────
+export async function savePlan(plan, input, shared = false) {
+  const ref = doc(sub("runPlans"));
+  await setDoc(ref, {
+    title: plan.title ?? "Run plan",
+    segments: plan.segments.map(({ type, startMinute, durationSec, targetZone, paceHint, note }) => ({ type, startMinute, durationSec, targetZone, paceHint: paceHint ?? "", note: note ?? "" })),
+    source: plan.source === "ai" ? "ai" : "rules",
+    notes: plan.notes ?? [],
+    input,
+    shared,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+export async function myPlans(max = 10) {
+  const snap = await getDocs(query(sub("runPlans"), orderBy("createdAt", "desc"), limit(max)));
+  return snap.docs.map((d) => ({ id: d.id, ownerUid: uid(), ...d.data() }));
+}
+export const sharePlan = (id, shared) => updateDoc(doc(db, "users", uid(), "runPlans", id), { shared });
+export const deletePlan = (id) => deleteDoc(doc(db, "users", uid(), "runPlans", id));
+export async function friendsPlans() {
+  const ids = await getDocs(sub("friends")).then((x) => x.docs.map((d) => d.id)).catch(() => []);
+  const all = await Promise.all(ids.map((f) =>
+    getDocs(query(collection(db, "users", f, "runPlans"), where("shared", "==", true), limit(3)))
+      .then((x) => x.docs.map((d) => ({ id: d.id, ownerUid: f, ...d.data() })))
+      .catch(() => [])
+  ));
+  return all.flat();
+}

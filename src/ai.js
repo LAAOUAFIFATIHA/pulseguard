@@ -163,3 +163,34 @@ export async function checkDeviceModel() {
     return "unsupported";
   }
 }
+
+// ── Run planner (Part F): strict JSON segments ─────────────────────────────
+import { PLAN_JSON_SCHEMA, SEGMENT_TYPES } from "./runplan.js";
+const planSchema = Schema.object({
+  properties: {
+    title: Schema.string(),
+    segments: Schema.array({
+      items: Schema.object({
+        properties: {
+          type: Schema.enumString({ enum: SEGMENT_TYPES }),
+          startMinute: Schema.number(),
+          durationSec: Schema.integer(),
+          targetZone: Schema.integer(),
+          paceHint: Schema.string(),
+          note: Schema.string(),
+        },
+      }),
+    }),
+  },
+});
+export const planModel = getGenerativeModel(ai, {
+  mode: InferenceMode.PREFER_IN_CLOUD,
+  inCloudParams: { model: CLOUD_MODEL, generationConfig: { responseMimeType: "application/json", responseSchema: planSchema } },
+  onDeviceParams: { promptOptions: { responseConstraint: PLAN_JSON_SCHEMA } },
+});
+/** Asks the AI for a plan; returns { plan, source } or throws. */
+export async function aiPlan(prompt) {
+  const res = await run(planModel, prompt);
+  const plan = JSON.parse(res.text.replace(/^```(json)?|```$/g, "").trim());
+  return { plan, source: res.source };
+}

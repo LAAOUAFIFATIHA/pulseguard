@@ -406,6 +406,21 @@ service cloud.firestore {
         allow delete: if isOwner(uid);
       }
 
+      // run plans: owner writes; friends may read the ones shared with them
+      match /runPlans/{pid} {
+        allow read: if isOwner(uid) || (verified() && resource.data.shared == true && areFriends(uid, request.auth.uid));
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['title', 'segments', 'source', 'notes', 'input', 'shared', 'createdAt'])
+          && request.resource.data.title is string && request.resource.data.title.size() <= 80
+          && request.resource.data.segments is list && request.resource.data.segments.size() >= 3 && request.resource.data.segments.size() <= 80
+          && request.resource.data.source in ['ai', 'rules']
+          && request.resource.data.shared is bool
+          && request.resource.data.createdAt == request.time;
+        allow update: if isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shared'])
+          && request.resource.data.shared is bool;
+        allow delete: if isOwner(uid);
+      }
+
       match /ratingEvents/{eid} {
         allow read, delete: if isOwner(uid);
         allow create: if isOwner(uid)

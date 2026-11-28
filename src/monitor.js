@@ -161,6 +161,7 @@ export function createMonitor({ onAlert, recorder, getRules } = {}) {
   return {
     start,
     isRunning: () => running,
+    simSeconds: () => sim?.t ?? 0,
     startedAt: () => startedAt,
     setRules: (rules) => Object.assign(rhythm.rules, rules),
     rules: () => rhythm.rules,

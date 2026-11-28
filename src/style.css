@@ -524,6 +524,31 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: 
 .warn-text { color: var(--p-redwood); }
 #challenge-dialog { max-width: 440px; width: calc(100% - 32px); }
 
+/* ── Run planner ── */
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.pl-weather-cell { display: flex; align-items: flex-end; }
+.plan-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; margin: 12px 0; gap: 2px; }
+.plan-bar .seg { display: block; min-width: 3px; background: var(--seg); }
+.seg-warmup, .seg-cooldown { --seg: var(--p-coral); }
+.seg-run { --seg: var(--p-redwood); }
+.seg-walk { --seg: #e8b7b8; }
+.seg-rest { --seg: var(--p-wine); }
+.seg-water { --seg: #2DB6A3; }
+.plan-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.seg-row { display: grid; grid-template-columns: 52px 90px 130px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 12px; border-left: 4px solid var(--seg); background: var(--surface-2); border-radius: var(--radius-sm); font-size: 14px; }
+.seg-time { font-variant-numeric: tabular-nums; color: var(--muted); }
+.plan-notes { margin: 12px 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.plan-live { border: 2px solid var(--accent); }
+.plan-live-head { display: flex; justify-content: space-between; align-items: center; }
+.plan-live-main { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 6px 0; }
+.plan-live-main strong { font-size: 20px; color: var(--text-h); }
+.plan-count { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.plan-progress { background: var(--border); }
+.plan-progress span { background: linear-gradient(90deg, var(--p-redwood), var(--p-coral)); }
+.plan-live-foot { display: flex; justify-content: space-between; font-size: 14px; margin-top: 6px; }
+.plan-cue { font-weight: 600; color: var(--p-redwood); min-height: 1.2em; }
+@media (max-width: 640px) { .seg-row { grid-template-columns: 48px 1fr; } }
+
 /* ── Badges and records ── */
 .records-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 14px; }
 .record { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; }

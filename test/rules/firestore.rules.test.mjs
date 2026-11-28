@@ -763,3 +763,20 @@ test("badges and records: owner writes known badges; private accounts hide them"
   await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), "users/bob/badges/first_run"), { unlockedAt: t0, rarity: "common" }));
   await assertFails(getDocs(collection(as("carol"), "users/bob/badges"))); // private, not a follower
 });
+
+// ── Part F: run plans ──────────────────────────────────────────────────────
+test("run plans: owner saves; friends read only shared ones", async () => {
+  await seedFriends();
+  const seg = { type: "run", startMinute: 0, durationSec: 300, targetZone: 2, paceHint: "easy", note: "" };
+  const plan = (shared) => ({ title: "40 min", segments: [seg, seg, seg], source: "rules", notes: [], input: { minutes: 40 }, shared, createdAt: serverTimestamp() });
+  await assertSucceeds(setDoc(doc(as("alice"), "users/alice/runPlans/p1"), plan(false)));
+  await assertSucceeds(setDoc(doc(as("alice"), "users/alice/runPlans/p2"), plan(true)));
+  await assertFails(setDoc(doc(as("bob"), "users/alice/runPlans/p3"), plan(true)));
+  await assertFails(setDoc(doc(as("alice"), "users/alice/runPlans/p4"), { ...plan(true), source: "magic" }));
+  await assertFails(getDoc(doc(as("bob"), "users/alice/runPlans/p1"))); // not shared
+  await assertSucceeds(getDoc(doc(as("bob"), "users/alice/runPlans/p2"))); // friend, shared
+  await assertFails(getDoc(doc(as("carol"), "users/alice/runPlans/p2"))); // not a friend
+  await assertSucceeds(getDocs(query(collection(as("bob"), "users/alice/runPlans"), where("shared", "==", true))));
+  await assertSucceeds(updateDoc(doc(as("alice"), "users/alice/runPlans/p1"), { shared: true }));
+  await assertFails(updateDoc(doc(as("alice"), "users/alice/runPlans/p1"), { title: "changed" }));
+});

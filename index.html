@@ -160,6 +160,7 @@
           <a href="#/team" data-route="team"><svg><use href="#i-team" /></svg>Team</a>
           <a href="#/friends" data-route="friends"><svg><use href="#i-friends" /></svg>Friends<span id="friends-badge" class="nav-badge" aria-label="pending"></span></a>
           <a href="#/rating" data-route="rating"><svg><use href="#i-trophy" /></svg>Rating</a>
+          <a href="#/plan" data-route="plan"><svg><use href="#i-route" /></svg>Plan a run</a>
           <a href="#/compete" data-route="compete"><svg><use href="#i-flag" /></svg>Compete<span id="ch-count" class="nav-badge" aria-label="challenge invites"></span></a>
           <a href="#/profile" data-route="profile"><svg><use href="#i-profile" /></svg>Profile</a>
           <a href="#/settings" data-route="settings"><svg><use href="#i-settings" /></svg>Settings</a>
@@ -269,6 +270,13 @@
 
         <!-- Live monitor -->
         <section class="page" data-page="live" hidden>
+          <div id="plan-live" class="card plan-live" hidden>
+            <div class="plan-live-head"><span class="eyebrow" id="pl-live-title">Run plan</span><button type="button" id="pl-live-stop" class="btn btn-ghost btn-sm">Stop plan</button></div>
+            <div class="plan-live-main"><strong id="pl-live-seg">Press Start to begin the plan</strong><span id="pl-live-count" class="plan-count">0:00</span></div>
+            <div class="progress plan-progress" aria-hidden="true"><span id="pl-live-progress"></span></div>
+            <p class="plan-live-foot"><span id="pl-live-next"></span> <span id="pl-live-adh" class="muted"></span></p>
+            <p id="pl-live-cue" class="plan-cue" aria-live="polite"></p>
+          </div>
           <div class="check-card" id="check-card" data-state="idle">
             <div class="check-icon" aria-hidden="true"><svg><use href="#i-shield" /></svg></div>
             <div class="check-main">
@@ -624,6 +632,34 @@
             <ul id="rating-changes" class="changes"></ul>
           </div>
           <p class="disclaimer">Demo: runs come from the simulated shirt and count at 50%. A motivational score, not a fitness or medical assessment.</p>
+        </section>
+
+        <!-- Plan a run -->
+        <section class="page" data-page="plan" hidden>
+          <div class="card">
+            <div class="card-head"><div><h2>Plan a run</h2><p class="muted">The AI builds the plan; safety rules check it. If the AI is not available, simple rules make it.</p></div></div>
+            <div class="form plan-form">
+              <div class="grid-3">
+                <div><label for="pl-min">Goal (minutes)</label><input id="pl-min" type="number" min="20" max="150" value="40" /></div>
+                <div><label for="pl-level">Level</label><select id="pl-level"><option value="starting">Starting</option><option value="casual" selected>Casual</option><option value="regular">Regular</option><option value="competitive">Competitive</option></select></div>
+                <div><label for="pl-time">Start time</label><input id="pl-time" type="time" value="07:30" /></div>
+                <div><label for="pl-age">Age</label><input id="pl-age" type="number" min="10" max="100" /></div>
+                <div><label for="pl-rest">Resting heart rate</label><input id="pl-rest" type="number" min="30" max="120" placeholder="bpm" /></div>
+                <div><label for="pl-lang">Voice cues</label><select id="pl-lang"><option value="en">English</option><option value="fr">Français</option><option value="ar">العربية</option></select></div>
+                <div><label for="pl-temp">Temperature (°C)</label><input id="pl-temp" type="number" min="-30" max="55" value="22" /></div>
+                <div><label for="pl-hum">Humidity (%)</label><input id="pl-hum" type="number" min="0" max="100" value="55" /></div>
+                <div class="pl-weather-cell"><button type="button" id="pl-weather" class="btn btn-outline btn-sm">Use local weather</button></div>
+              </div>
+              <label class="check"><input type="checkbox" id="pl-walk" checked /> <span>Walk breaks</span></label>
+              <div class="actions"><button type="button" id="pl-generate" class="btn btn-primary">Make my plan</button><span id="pl-status" class="muted" role="status"></span></div>
+            </div>
+          </div>
+          <div id="pl-result" class="card" hidden></div>
+          <div class="grid-2">
+            <div class="card"><h2>My plans</h2><ul id="pl-mine" class="lb-list"></ul></div>
+            <div class="card"><h2>Shared by friends</h2><ul id="pl-friends" class="lb-list"></ul></div>
+          </div>
+          <p class="disclaimer">General guidance, not medical advice. Stop if you feel unwell.</p>
         </section>
 
         <!-- Compete: challenges, runners at your level, leaderboards -->

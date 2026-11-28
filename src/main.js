@@ -16,6 +16,7 @@ import { initRating } from "./ratingui.js";
 import { initPeople, profileTabs } from "./people.js";
 import { initCompete } from "./compete.js";
 import { initBadges } from "./badgesui.js";
+import { initPlanner } from "./planui.js";
 import { buildRun, maxHeartRate } from "./runsummary.js";
 import { saveRun, rateFinishedRun } from "./db.js";
 import { downsample } from "./feed.js";
@@ -197,6 +198,7 @@ const monitor = createMonitor({
     runAI("coach", buildCoachPrompt(snap, readProfile()));
   },
 });
+const planner = initPlanner({ monitor, speakEnabled: () => $("speak").checked });
 
 function sessionSummary() {
   const sum = monitor.summary();
@@ -371,6 +373,7 @@ initRouter({
     if (route === "rating") ratingPage.enter();
     if (route === "runner" && param) people.enterRunner(param);
     if (route === "compete") compete.enter();
+    if (route === "plan") planner.enter();
     if (route === "profile") people.enterProfile();
     if (route === "settings") people.renderSettings();
   },
@@ -385,7 +388,7 @@ $("finish-run").onclick = async () => {
   monitor.stop();
   const sessionId = history.sessionId();
   const data = monitor.runData();
-  const run = buildRun(data, { maxHr: maxHeartRate(readProfile().age) });
+  const run = buildRun(data, { maxHr: maxHeartRate(readProfile().age), ...planner.runInfo() });
   home.setLastRun(run, downsample(data.hrLog.map((h) => h.hr), 60));
   $("finish-run").disabled = true;
   try {
